@@ -1,0 +1,170 @@
+{
+  "language": "ja",
+  "destination": "日本",
+  "version": "1.0.0",
+  "scenes": [
+    {
+      "category": "restaurant",
+      "name": "餐厅",
+      "icon": "🍜",
+      "subcategories": [
+        {
+          "name": "点餐",
+          "phrases": [
+            {"id": "rest_ord_001", "source": "请给我看菜单", "target": "メニューを見せてください", "pinyin": "menyuu wo misete kudasai", "priority": 10},
+            {"id": "rest_ord_002", "source": "有英文菜单吗？", "target": "英語のメニューはありますか？", "pinyin": "eigo no menyuu wa arimasu ka", "priority": 9},
+            {"id": "rest_ord_003", "source": "推荐一下你们的招牌菜", "target": "おすすめ料理は何ですか？", "pinyin": "osusume ryouri wa nan desu ka", "priority": 8},
+            {"id": "rest_ord_004", "source": "我要这个", "target": "これをお願いします", "pinyin": "kore wo onegai shimasu", "priority": 10},
+            {"id": "rest_ord_005", "source": "不要太辣", "target": "あまり辛くしないでください", "pinyin": "amari karaku shinaide kudasai", "priority": 6},
+            {"id": "rest_ord_006", "source": "再来一杯水", "target": "お水をもう一杯ください", "pinyin": "omizu wo mou ippai kudasai", "priority": 5}
+          ]
+        },
+        {
+          "name": "过敏/忌口",
+          "phrases": [
+            {"id": "rest_alg_001", "source": "我对花生过敏", "target": "ピーナッツアレルギーです", "pinyin": "piinattsu arerugii desu", "priority": 10},
+            {"id": "rest_alg_002", "source": "我不吃猪肉", "target": "豚肉は食べられません", "pinyin": "butaniku wa taberaremasen", "priority": 9},
+            {"id": "rest_alg_003", "source": "有素食选项吗？", "target": "ベジタリアンメニューはありますか？", "pinyin": "bejitarian menyuu wa arimasu ka", "priority": 8}
+          ]
+        },
+        {
+          "name": "结账",
+          "phrases": [
+            {"id": "rest_pay_001", "source": "买单", "target": "お会計をお願いします", "pinyin": "okaikei wo onegai shimasu", "priority": 10},
+            {"id": "rest_pay_002", "source": "可以刷卡吗？", "target": "カードは使えますか？", "pinyin": "kaado wa tsukaemasu ka", "priority": 9},
+            {"id": "rest_pay_003", "source": "可以用微信/支付宝吗？", "target": "WeChat PayかAlipayは使えますか？", "pinyin": "WeChat Pay ka Alipay wa tsukaemasu ka", "priority": 7},
+            {"id": "rest_pay_004", "source": "请开发票", "target": "領収書をお願いします", "pinyin": "ryoushuusho wo onegai shimasu", "priority": 6}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "transport",
+      "name": "交通",
+      "icon": "🚃",
+      "subcategories": [
+        {
+          "name": "问路",
+          "phrases": [
+            {"id": "trans_ask_001", "source": "请问去东京塔怎么走？", "target": "東京タワーへの行き方を教えてください", "pinyin": "toukyou tawaa e no ikikata wo oshiete kudasai", "priority": 9},
+            {"id": "trans_ask_002", "source": "最近的地铁站在哪里？", "target": "一番近い地下鉄の駅はどこですか？", "pinyin": "ichiban chikai chikatetsu no eki wa doko desu ka", "priority": 10},
+            {"id": "trans_ask_003", "source": "走路要多久？", "target": "歩いてどのくらいかかりますか？", "pinyin": "aruite dono kurai kakarimasu ka", "priority": 7}
+          ]
+        },
+        {
+          "name": "买票",
+          "phrases": [
+            {"id": "trans_tkt_001", "source": "一张到新宿的票", "target": "新宿までの切符を一枚ください", "pinyin": "shinjuku made no kippu wo ichimai kudasai", "priority": 9},
+            {"id": "trans_tkt_002", "source": "请问下一班车几点？", "target": "次の電車は何時ですか？", "pinyin": "tsugi no densha wa nanji desu ka", "priority": 8}
+          ]
+        },
+        {
+          "name": "打车",
+          "phrases": [
+            {"id": "trans_tx_001", "source": "请带我到这个地址", "target": "この住所までお願いします", "pinyin": "kono juusho made onegai shimasu", "priority": 10},
+            {"id": "trans_tx_002", "source": "请停在这里", "target": "ここで止めてください", "pinyin": "koko de tomete kudasai", "priority": 8}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "hotel",
+      "name": "酒店",
+      "icon": "🏨",
+      "subcategories": [
+        {
+          "name": "入住",
+          "phrases": [
+            {"id": "hotel_ci_001", "source": "我要办理入住", "target": "チェックインをお願いします", "pinyin": "chekkuin wo onegai shimasu", "priority": 10},
+            {"id": "hotel_ci_002", "source": "我已经预订了房间", "target": "予約してあります", "pinyin": "yoyaku shite arimasu", "priority": 9}
+          ]
+        },
+        {
+          "name": "客房服务",
+          "phrases": [
+            {"id": "hotel_rs_001", "source": "请再给我一条毛巾", "target": "タオルをもう一枚ください", "pinyin": "taoru wo mou ichimai kudasai", "priority": 7},
+            {"id": "hotel_rs_002", "source": "空调坏了", "target": "エアコンが壊れています", "pinyin": "eakon ga kowarete imasu", "priority": 6}
+          ]
+        },
+        {
+          "name": "退房",
+          "phrases": [
+            {"id": "hotel_co_001", "source": "我要退房", "target": "チェックアウトをお願いします", "pinyin": "chekkuauto wo onegai shimasu", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "shopping",
+      "name": "购物",
+      "icon": "🛍️",
+      "subcategories": [
+        {
+          "name": "询价",
+          "phrases": [
+            {"id": "shop_pr_001", "source": "这个多少钱？", "target": "これはいくらですか？", "pinyin": "kore wa ikura desu ka", "priority": 10},
+            {"id": "shop_pr_002", "source": "可以便宜一点吗？", "target": "もう少し安くなりますか？", "pinyin": "mou sukoshi yasuku narimasu ka", "priority": 6}
+          ]
+        },
+        {
+          "name": "免税",
+          "phrases": [
+            {"id": "shop_tx_001", "source": "可以免税吗？", "target": "免税できますか？", "pinyin": "menzei dekimasu ka", "priority": 8}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "emergency",
+      "name": "急救",
+      "icon": "🚨",
+      "subcategories": [
+        {
+          "name": "身体不适",
+          "phrases": [
+            {"id": "emg_sk_001", "source": "我不舒服", "target": "気分が悪いです", "pinyin": "kibun ga warui desu", "priority": 10},
+            {"id": "emg_sk_002", "source": "请叫救护车", "target": "救急車を呼んでください", "pinyin": "kyuukyuusha wo yonde kudasai", "priority": 10},
+            {"id": "emg_sk_003", "source": "附近有医院吗？", "target": "近くに病院はありますか？", "pinyin": "chikaku ni byouin wa arimasu ka", "priority": 9}
+          ]
+        },
+        {
+          "name": "求助",
+          "phrases": [
+            {"id": "emg_hp_001", "source": "请帮帮我", "target": "助けてください", "pinyin": "tasukete kudasai", "priority": 10},
+            {"id": "emg_hp_002", "source": "我的护照丢了", "target": "パスポートをなくしました", "pinyin": "pasupooto wo nakushimashita", "priority": 9}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "direction",
+      "name": "问路",
+      "icon": "🗺️",
+      "subcategories": [
+        {
+          "name": "方向",
+          "phrases": [
+            {"id": "dir_d_001", "source": "请问洗手间在哪里？", "target": "トイレはどこですか？", "pinyin": "toire wa doko desu ka", "priority": 10},
+            {"id": "dir_d_002", "source": "这里是哪里？", "target": "ここはどこですか？", "pinyin": "koko wa doko desu ka", "priority": 8}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "daily",
+      "name": "日常",
+      "icon": "💬",
+      "subcategories": [
+        {
+          "name": "问候",
+          "phrases": [
+            {"id": "daily_g_001", "source": "你好", "target": "こんにちは", "pinyin": "konnichiwa", "priority": 10},
+            {"id": "daily_g_002", "source": "谢谢", "target": "ありがとう", "pinyin": "arigatou", "priority": 10},
+            {"id": "daily_g_003", "source": "对不起", "target": "すみません", "pinyin": "sumimasen", "priority": 10},
+            {"id": "daily_g_004", "source": "再见", "target": "さようなら", "pinyin": "sayounara", "priority": 8}
+          ]
+        }
+      ]
+    }
+  ]
+}

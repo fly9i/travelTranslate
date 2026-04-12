@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 后端地址；开发时指向本机 -->
+    <key>API_BASE_URL</key>
+    <string>http://localhost:8000</string>
+
+    <!-- 权限描述（按需启用） -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>用于语音输入以进行翻译。</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>用于语音识别以生成翻译文本。</string>
+    <key>NSCameraUsageDescription</key>
+    <string>用于拍照翻译菜单或路牌。</string>
+
+    <!-- 本地开发允许明文 HTTP -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+</dict>
+</plist>

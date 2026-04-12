@@ -1,0 +1,122 @@
+{
+  "language": "ko",
+  "destination": "韩国",
+  "version": "1.0.0",
+  "scenes": [
+    {
+      "category": "restaurant",
+      "name": "餐厅",
+      "icon": "🍜",
+      "subcategories": [
+        {
+          "name": "点餐",
+          "phrases": [
+            {"id": "ko_rest_ord_001", "source": "请给我看菜单", "target": "메뉴 좀 보여주세요", "pinyin": "menyu jom boyeojuseyo", "priority": 10},
+            {"id": "ko_rest_ord_002", "source": "推荐一下你们的招牌菜", "target": "추천 메뉴가 뭐예요?", "pinyin": "chucheon menyuga mwoyeyo", "priority": 9},
+            {"id": "ko_rest_ord_003", "source": "我要这个", "target": "이거 주세요", "pinyin": "igeo juseyo", "priority": 10},
+            {"id": "ko_rest_ord_004", "source": "不要太辣", "target": "너무 맵지 않게 해주세요", "pinyin": "neomu maepji anke haejuseyo", "priority": 7}
+          ]
+        },
+        {
+          "name": "结账",
+          "phrases": [
+            {"id": "ko_rest_pay_001", "source": "买单", "target": "계산해 주세요", "pinyin": "gyesanhae juseyo", "priority": 10},
+            {"id": "ko_rest_pay_002", "source": "可以刷卡吗？", "target": "카드로 결제 가능해요?", "pinyin": "kadeuro gyeoljae ganeunghaeyo", "priority": 9}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "transport",
+      "name": "交通",
+      "icon": "🚃",
+      "subcategories": [
+        {
+          "name": "问路",
+          "phrases": [
+            {"id": "ko_trans_ask_001", "source": "最近的地铁站在哪里？", "target": "가장 가까운 지하철역이 어디예요?", "pinyin": "gajang gakkaun jihacheolyeogi eodiyeyo", "priority": 10}
+          ]
+        },
+        {
+          "name": "打车",
+          "phrases": [
+            {"id": "ko_trans_tx_001", "source": "请带我到这个地址", "target": "이 주소로 가주세요", "pinyin": "i jusoro gajuseyo", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "hotel",
+      "name": "酒店",
+      "icon": "🏨",
+      "subcategories": [
+        {
+          "name": "入住",
+          "phrases": [
+            {"id": "ko_hotel_ci_001", "source": "我要办理入住", "target": "체크인 할게요", "pinyin": "chekeuin halgeyo", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "shopping",
+      "name": "购物",
+      "icon": "🛍️",
+      "subcategories": [
+        {
+          "name": "询价",
+          "phrases": [
+            {"id": "ko_shop_pr_001", "source": "这个多少钱？", "target": "이거 얼마예요?", "pinyin": "igeo eolmayeyo", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "emergency",
+      "name": "急救",
+      "icon": "🚨",
+      "subcategories": [
+        {
+          "name": "身体不适",
+          "phrases": [
+            {"id": "ko_emg_sk_001", "source": "请叫救护车", "target": "구급차를 불러 주세요", "pinyin": "gugeupchareul bulleo juseyo", "priority": 10}
+          ]
+        },
+        {
+          "name": "求助",
+          "phrases": [
+            {"id": "ko_emg_hp_001", "source": "请帮帮我", "target": "도와주세요", "pinyin": "dowajuseyo", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "direction",
+      "name": "问路",
+      "icon": "🗺️",
+      "subcategories": [
+        {
+          "name": "方向",
+          "phrases": [
+            {"id": "ko_dir_d_001", "source": "请问洗手间在哪里？", "target": "화장실이 어디예요?", "pinyin": "hwajangsiri eodiyeyo", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "daily",
+      "name": "日常",
+      "icon": "💬",
+      "subcategories": [
+        {
+          "name": "问候",
+          "phrases": [
+            {"id": "ko_daily_g_001", "source": "你好", "target": "안녕하세요", "pinyin": "annyeonghaseyo", "priority": 10},
+            {"id": "ko_daily_g_002", "source": "谢谢", "target": "감사합니다", "pinyin": "gamsahamnida", "priority": 10},
+            {"id": "ko_daily_g_003", "source": "对不起", "target": "죄송합니다", "pinyin": "joesonghamnida", "priority": 10}
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "language": "en",
+  "destination": "英语区",
+  "version": "1.0.0",
+  "scenes": [
+    {
+      "category": "restaurant",
+      "name": "餐厅",
+      "icon": "🍜",
+      "subcategories": [
+        {
+          "name": "点餐",
+          "phrases": [
+            {"id": "en_rest_ord_001", "source": "请给我看菜单", "target": "May I see the menu, please?", "priority": 10},
+            {"id": "en_rest_ord_002", "source": "推荐一下你们的招牌菜", "target": "What would you recommend?", "priority": 9},
+            {"id": "en_rest_ord_003", "source": "我要这个", "target": "I'll have this one, please.", "priority": 10},
+            {"id": "en_rest_ord_004", "source": "不要太辣", "target": "Not too spicy, please.", "priority": 6}
+          ]
+        },
+        {
+          "name": "过敏/忌口",
+          "phrases": [
+            {"id": "en_rest_alg_001", "source": "我对花生过敏", "target": "I'm allergic to peanuts.", "priority": 10},
+            {"id": "en_rest_alg_002", "source": "有素食选项吗？", "target": "Do you have vegetarian options?", "priority": 9}
+          ]
+        },
+        {
+          "name": "结账",
+          "phrases": [
+            {"id": "en_rest_pay_001", "source": "买单", "target": "Check, please.", "priority": 10},
+            {"id": "en_rest_pay_002", "source": "可以刷卡吗？", "target": "Do you accept credit cards?", "priority": 9}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "transport",
+      "name": "交通",
+      "icon": "🚃",
+      "subcategories": [
+        {
+          "name": "问路",
+          "phrases": [
+            {"id": "en_trans_ask_001", "source": "请问最近的地铁站在哪里？", "target": "Where is the nearest subway station?", "priority": 10},
+            {"id": "en_trans_ask_002", "source": "走路要多久？", "target": "How long does it take to walk there?", "priority": 7}
+          ]
+        },
+        {
+          "name": "打车",
+          "phrases": [
+            {"id": "en_trans_tx_001", "source": "请带我到这个地址", "target": "Please take me to this address.", "priority": 10},
+            {"id": "en_trans_tx_002", "source": "请停在这里", "target": "Please stop here.", "priority": 8}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "hotel",
+      "name": "酒店",
+      "icon": "🏨",
+      "subcategories": [
+        {
+          "name": "入住",
+          "phrases": [
+            {"id": "en_hotel_ci_001", "source": "我要办理入住", "target": "I'd like to check in.", "priority": 10},
+            {"id": "en_hotel_ci_002", "source": "我已经预订了房间", "target": "I have a reservation.", "priority": 9}
+          ]
+        },
+        {
+          "name": "退房",
+          "phrases": [
+            {"id": "en_hotel_co_001", "source": "我要退房", "target": "I'd like to check out.", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "shopping",
+      "name": "购物",
+      "icon": "🛍️",
+      "subcategories": [
+        {
+          "name": "询价",
+          "phrases": [
+            {"id": "en_shop_pr_001", "source": "这个多少钱？", "target": "How much is this?", "priority": 10},
+            {"id": "en_shop_pr_002", "source": "可以便宜一点吗？", "target": "Can you give me a discount?", "priority": 6}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "emergency",
+      "name": "急救",
+      "icon": "🚨",
+      "subcategories": [
+        {
+          "name": "身体不适",
+          "phrases": [
+            {"id": "en_emg_sk_001", "source": "请叫救护车", "target": "Please call an ambulance.", "priority": 10},
+            {"id": "en_emg_sk_002", "source": "附近有医院吗？", "target": "Is there a hospital nearby?", "priority": 9}
+          ]
+        },
+        {
+          "name": "求助",
+          "phrases": [
+            {"id": "en_emg_hp_001", "source": "请帮帮我", "target": "Please help me.", "priority": 10},
+            {"id": "en_emg_hp_002", "source": "我的护照丢了", "target": "I lost my passport.", "priority": 9}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "direction",
+      "name": "问路",
+      "icon": "🗺️",
+      "subcategories": [
+        {
+          "name": "方向",
+          "phrases": [
+            {"id": "en_dir_d_001", "source": "请问洗手间在哪里？", "target": "Where is the restroom?", "priority": 10}
+          ]
+        }
+      ]
+    },
+    {
+      "category": "daily",
+      "name": "日常",
+      "icon": "💬",
+      "subcategories": [
+        {
+          "name": "问候",
+          "phrases": [
+            {"id": "en_daily_g_001", "source": "你好", "target": "Hello", "priority": 10},
+            {"id": "en_daily_g_002", "source": "谢谢", "target": "Thank you", "priority": 10},
+            {"id": "en_daily_g_003", "source": "对不起", "target": "Excuse me / Sorry", "priority": 10},
+            {"id": "en_daily_g_004", "source": "再见", "target": "Goodbye", "priority": 8}
+          ]
+        }
+      ]
+    }
+  ]
+}
