@@ -84,6 +84,10 @@ class TranslationService:
                 result = await self._translate_with_anthropic(
                     source_text, source_language, target_language, context
                 )
+            elif engine == "openai" and self.settings.openai_api_key:
+                result = await self._translate_with_openai(
+                    source_text, source_language, target_language, context
+                )
             else:
                 result = self._translate_with_fallback(
                     source_text, source_language, target_language
@@ -185,14 +189,7 @@ class TranslationService:
             raise RuntimeError("anthropic SDK 未安装") from exc
 
         client = AsyncAnthropic(api_key=self.settings.anthropic_api_key)
-        scene_hint = f"场景：{context}。" if context else ""
-        prompt = (
-            f"你是一名旅行翻译助手。{scene_hint}"
-            f"请把下面这段 {source_language} 文本翻译成 {target_language}，"
-            "要求口语化、简洁、礼貌，便于在当地与人沟通。"
-            "只输出译文本身，不要附加解释或标点强调。\n\n"
-            f"原文：{source_text}"
-        )
+        prompt = self._build_prompt(source_text, source_language, target_language, context)
         message = await client.messages.create(
             model=self.settings.anthropic_model,
             max_tokens=256,
@@ -209,4 +206,55 @@ class TranslationService:
             confidence=0.95,
             engine="anthropic",
             cached=False,
+        )
+
+    async def _translate_with_openai(
+        self,
+        source_text: str,
+        source_language: str,
+        target_language: str,
+        context: str | None,
+    ) -> TranslationResult:
+        """调用 OpenAI 兼容接口翻译（支持 OpenAI / DeepSeek / 通义 / Ollama 等）。"""
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("openai SDK 未安装") from exc
+
+        client = AsyncOpenAI(
+            api_key=self.settings.openai_api_key,
+            base_url=self.settings.openai_base_url,
+        )
+        prompt = self._build_prompt(source_text, source_language, target_language, context)
+        completion = await client.chat.completions.create(
+            model=self.settings.openai_model,
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        translated = (completion.choices[0].message.content or "").strip()
+        if not translated:
+            raise RuntimeError("OpenAI 兼容接口返回空译文")
+        return TranslationResult(
+            translated_text=translated,
+            transliteration=None,
+            confidence=0.95,
+            engine="openai",
+            cached=False,
+        )
+
+    @staticmethod
+    def _build_prompt(
+        source_text: str,
+        source_language: str,
+        target_language: str,
+        context: str | None,
+    ) -> str:
+        """构造翻译提示词。"""
+        scene_hint = f"场景：{context}。" if context else ""
+        return (
+            f"你是一名旅行翻译助手。{scene_hint}"
+            f"请把下面这段 {source_language} 文本翻译成 {target_language}，"
+            "要求口语化、简洁、礼貌，便于在当地与人沟通。"
+            "只输出译文本身，不要附加解释或标点强调。\n\n"
+            f"原文：{source_text}"
         )

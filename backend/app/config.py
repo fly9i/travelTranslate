@@ -27,9 +27,13 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/traveltranslate.db"
 
     # 翻译引擎
-    translation_engine: str = Field(default="mock", description="mock | anthropic")
+    translation_engine: str = Field(default="mock", description="mock | anthropic | openai")
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-4-6"
+    # OpenAI 兼容接口（可对接 OpenAI / DeepSeek / 通义 / Ollama / vLLM 等）
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
