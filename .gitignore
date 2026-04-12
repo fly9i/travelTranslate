@@ -1,0 +1,50 @@
+# ==================== 通用 ====================
+.DS_Store
+*.log
+*.bak
+*.swp
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+
+# ==================== Python / 后端 ====================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.sqlite
+*.db
+backend/data/
+!backend/app/data/
+
+# ==================== Android ====================
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+*.iml
+*.keystore
+*.jks
+
+# ==================== iOS / Swift ====================
+ios/.build/
+ios/DerivedData/
+ios/.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+ios/Pods/
+
+# ==================== Node（如有）====================
+node_modules/

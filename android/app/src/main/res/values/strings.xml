@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TravelTranslator</string>
+    <string name="tab_home">翻译</string>
+    <string name="tab_scene">场景</string>
+    <string name="tab_favorite">收藏</string>
+    <string name="tab_settings">设置</string>
+</resources>
