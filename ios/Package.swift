@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TravelTranslator",
-    platforms: [.iOS(.v16)],
+    platforms: [.iOS(.v17)],
     products: [
         .library(name: "TravelTranslatorCore", targets: ["TravelTranslatorCore"]),
     ],

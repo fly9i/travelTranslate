@@ -53,7 +53,7 @@ uv run pytest
 1. 用 Xcode 15+ 打开 `ios/Package.swift`，或新建一个 iOS App 项目并引入 `ios/TravelTranslator/` 目录
 2. 将 `TravelTranslator/Resources/Info.plist.template` 的内容合并进真正的 Info.plist
 3. 修改 `API_BASE_URL` 指向后端地址
-4. Build & Run，最低支持 iOS 16
+4. Build & Run，最低支持 iOS 17
 
 ## 核心能力
 

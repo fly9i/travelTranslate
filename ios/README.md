@@ -20,7 +20,7 @@ ios/
 
 1. 用 Xcode 15+ 打开 `Package.swift`（或将源码拖入一个新的 iOS App 项目）
 2. 在 `Services/APIConfig.swift` 修改 `baseURL` 指向后端服务地址
-3. Build & Run，最低支持 iOS 16
+3. Build & Run，最低支持 iOS 17
 
 ## 配置
 
