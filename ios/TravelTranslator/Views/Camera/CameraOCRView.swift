@@ -5,35 +5,44 @@ struct CameraOCRView: View {
     let snapshot: OCRSnapshot
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                // 顶部固定图片：高度上限为可用高度的 40%，滚动译文时保持可见
                 Image(uiImage: snapshot.composedImage)
                     .resizable()
                     .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: proxy.size.height * 0.4)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding([.horizontal, .top])
 
-                if let scene = snapshot.sceneType,
-                   let summary = snapshot.summary,
-                   !summary.isEmpty {
-                    SceneSummaryCard(sceneType: scene, summary: summary)
-                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let scene = snapshot.sceneType,
+                           let summary = snapshot.summary,
+                           !summary.isEmpty {
+                            SceneSummaryCard(sceneType: scene, summary: summary)
+                        }
 
-                if !snapshot.items.isEmpty {
-                    Text("原文 / 译文对照（\(snapshot.items.count) 项）")
-                        .font(.headline)
+                        if !snapshot.items.isEmpty {
+                            Text("原文 / 译文对照（\(snapshot.items.count) 项）")
+                                .font(.headline)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(snapshot.items.enumerated()), id: \.element.id) { idx, item in
-                            TranslateItemRow(index: idx, item: item)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(snapshot.items.enumerated()), id: \.element.id) { idx, item in
+                                    TranslateItemRow(index: idx, item: item)
+                                }
+                            }
+                        } else {
+                            Text("等待 LLM 返回结果…")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                } else {
-                    Text("等待 LLM 返回结果…")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
                 }
             }
-            .padding()
         }
         .navigationTitle("拍照翻译")
         .navigationBarTitleDisplayMode(.inline)
