@@ -1,9 +1,13 @@
 import SwiftUI
 
-/// 实时对话页（简化版：文字输入 + 切换说话人）。
+/// 实时对话页：文字 + 按住说话 + 朗读译文。
 struct ConversationView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ConversationViewModel()
+    @StateObject private var recognizer = SpeechRecognitionService.shared
+
+    @State private var holdingToRecord = false
+    @State private var cancelRecord = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,7 +28,7 @@ struct ConversationView: View {
                 }
             }
 
-            if let error = viewModel.error {
+            if let error = viewModel.error ?? recognizer.errorMessage {
                 Text(error).foregroundStyle(.red).font(.footnote).padding(.horizontal)
             }
 
@@ -32,16 +36,23 @@ struct ConversationView: View {
             VStack(spacing: 8) {
                 HStack {
                     TextField(
-                        viewModel.speaker == "user" ? "我说中文…" : "对方说日文…",
+                        viewModel.speaker == "user" ? "我说中文…" : "对方说\(appState.destination.name)语…",
                         text: $viewModel.input
                     )
                     .textFieldStyle(.roundedBorder)
+                    .disabled(recognizer.isRecording)
+
                     Button("发送") {
-                        Task { await viewModel.send() }
+                        Task { await viewModel.send(destination: appState.destination) }
                     }
                     .disabled(viewModel.input.isEmpty || viewModel.loading)
                     .buttonStyle(.borderedProminent)
                 }
+
+                // 按住说话按钮
+                holdToTalkButton
+                    .frame(maxWidth: .infinity)
+
                 Button {
                     viewModel.switchSpeaker()
                 } label: {
@@ -63,7 +74,89 @@ struct ConversationView: View {
                 source: "zh",
                 target: appState.destination.language
             )
+            _ = await recognizer.requestAuthorization()
         }
+        .overlay(alignment: .center) {
+            if holdingToRecord {
+                recordingOverlay
+            }
+        }
+    }
+
+    private var holdToTalkButton: some View {
+        let label = recognizer.isRecording
+            ? (cancelRecord ? "松开取消" : "松开发送")
+            : "按住 说话"
+        return Text(label)
+            .font(.headline)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(recognizer.isRecording
+                ? (cancelRecord ? Color.red.opacity(0.8) : Color.accentColor)
+                : Color(.systemGray5))
+            .foregroundStyle(recognizer.isRecording ? .white : .primary)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if !holdingToRecord {
+                            holdingToRecord = true
+                            cancelRecord = false
+                            startRecording()
+                        }
+                        // 向上滑超过 60 点视为取消
+                        cancelRecord = value.translation.height < -60
+                    }
+                    .onEnded { _ in
+                        let wasCancelled = cancelRecord
+                        holdingToRecord = false
+                        cancelRecord = false
+                        finishRecording(cancelled: wasCancelled)
+                    }
+            )
+    }
+
+    private var recordingOverlay: some View {
+        VStack(spacing: 12) {
+            Image(systemName: cancelRecord ? "xmark.circle.fill" : "waveform")
+                .font(.system(size: 56))
+                .foregroundStyle(.white)
+            Text(cancelRecord ? "松开手指取消" : "正在聆听…")
+                .foregroundStyle(.white)
+            if !recognizer.partialText.isEmpty {
+                Text(recognizer.partialText)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.footnote)
+                    .padding(.horizontal)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(width: 220, height: 220)
+        .background(Color.black.opacity(0.75))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func startRecording() {
+        // user 说话 → 中文识别；counterpart 说话 → 目标语言识别
+        let lang = viewModel.speaker == "user" ? "zh-CN" : appState.destination.voiceLanguage
+        do {
+            try recognizer.start(languageCode: lang)
+        } catch {
+            viewModel.error = error.localizedDescription
+            holdingToRecord = false
+        }
+    }
+
+    private func finishRecording(cancelled: Bool) {
+        if cancelled {
+            recognizer.cancel()
+            return
+        }
+        let text = recognizer.stop()
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        viewModel.input = text
+        Task { await viewModel.send(destination: appState.destination) }
     }
 }
 
@@ -95,7 +188,7 @@ final class ConversationViewModel: ObservableObject {
         speaker = (speaker == "user") ? "counterpart" : "user"
     }
 
-    func send() async {
+    func send(destination: Destination) async {
         guard let cid = conversationId, !input.isEmpty else { return }
         loading = true
         error = nil
@@ -107,6 +200,9 @@ final class ConversationViewModel: ObservableObject {
             )
             messages.append(msg)
             input = ""
+            // 自动朗读译文：user 说话用目标语言念、counterpart 说话用中文念
+            let voice = speaker == "user" ? destination.voiceLanguage : "zh-CN"
+            SpeechService.shared.speak(msg.translatedText, languageCode: voice)
         } catch {
             self.error = error.localizedDescription
         }
