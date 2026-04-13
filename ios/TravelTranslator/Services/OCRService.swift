@@ -44,9 +44,15 @@ enum OCRService {
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            if !languages.isEmpty {
-                request.recognitionLanguages = languages
+            // 放开小字过滤：菜单/路牌常有相对高度很小的描述行，默认阈值会被丢掉
+            request.minimumTextHeight = 0
+            // 显式使用最新修订版（iOS 16+ 精度更高）
+            if #available(iOS 16.0, *) {
+                request.revision = VNRecognizeTextRequestRevision3
             }
+            request.recognitionLanguages = languages.isEmpty
+                ? ["en-US", "zh-Hans"]
+                : languages
 
             let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
             DispatchQueue.global(qos: .userInitiated).async {
