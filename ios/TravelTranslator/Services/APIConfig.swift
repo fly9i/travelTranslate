@@ -4,7 +4,7 @@ import Foundation
 enum APIConfig {
     static var baseURL: URL {
         let fromInfo = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-        let raw = fromInfo ?? ProcessInfo.processInfo.environment["API_BASE_URL"] ?? "http://localhost:8000"
-        return URL(string: raw) ?? URL(string: "http://localhost:8000")!
+        let raw = fromInfo ?? ProcessInfo.processInfo.environment["API_BASE_URL"] ?? "http://192.168.1.148:8000"
+        return URL(string: raw) ?? URL(string: "http://192.168.1.148:8000")!
     }
 }
