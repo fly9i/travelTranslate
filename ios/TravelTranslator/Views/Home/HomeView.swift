@@ -67,16 +67,6 @@ struct HomeView: View {
         .task {
             await appState.bootstrapFromLocation()
         }
-        .background {
-            if #available(iOS 18.0, *) {
-                AppleBatchTranslateHost(
-                    request: viewModel.pendingBatch,
-                    onComplete: { id, result in
-                        viewModel.completeLocalTranslation(id: id, result: result)
-                    }
-                )
-            }
-        }
     }
 
     private var header: some View {
@@ -251,10 +241,6 @@ final class HomeViewModel: ObservableObject {
     @Published var loadingMessage: String = ""
     @Published var ocrError: String?
 
-    /// 本地翻译请求；View 层的 AppleBatchTranslateHost 监听它来触发系统翻译
-    @Published var pendingBatch: PendingBatchRequest?
-    private var pendingContinuation: CheckedContinuation<[String]?, Never>?
-
     func translate(source: String, target: String, polish: Bool) async {
         guard !input.isEmpty else { return }
         loadingTranslate = true
@@ -301,16 +287,19 @@ final class HomeViewModel: ObservableObject {
             description: nil
         )
 
-        loadingMessage = AppleTranslator.isAvailable
-            ? "正在本地翻译 \(recognized.count) 条…"
-            : "正在批量翻译 \(recognized.count) 条…"
+        loadingMessage = "正在批量翻译 \(recognized.count) 条…"
         var blocks = recognized
         let texts = recognized.map { $0.originalText }
         let targetLang = appState.userLocale.language
         let sourceLang = appState.destination.language
         let destName = appState.destination.name
 
-        // 场景理解立即并发发起，互不阻塞
+        // 翻译 + 场景理解并发发起，互不阻塞
+        async let translationTask = Self.runBatchTranslate(
+            texts: texts,
+            source: sourceLang,
+            target: targetLang
+        )
         async let descriptionTask = Self.runVisionDescribe(
             texts: texts,
             source: sourceLang,
@@ -318,12 +307,7 @@ final class HomeViewModel: ObservableObject {
             destination: destName
         )
 
-        // 先试本地翻译（iOS 18.0+），失败/不可用再回退到后端批量接口
-        let translations = await translateBatch(
-            texts: texts,
-            sourceLang: sourceLang,
-            targetLang: targetLang
-        )
+        let translations = await translationTask
         for (idx, tr) in translations.enumerated() where idx < blocks.count {
             blocks[idx].translatedText = tr
         }
@@ -345,57 +329,21 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    /// 批量翻译主入口：优先走系统本地翻译，失败/老系统回退到后端 /translate/batch。
-    private func translateBatch(
+    private static func runBatchTranslate(
         texts: [String],
-        sourceLang: String,
-        targetLang: String
+        source: String,
+        target: String
     ) async -> [String] {
-        if AppleTranslator.isAvailable {
-            let local = await requestLocalTranslation(
-                texts: texts,
-                sourceLang: sourceLang,
-                targetLang: targetLang
-            )
-            if let local { return local }
-        }
-        // 回退：后端批量接口（Google / LLM / 兜底）
         do {
             return try await TranslationService.shared.translateBatch(
                 texts: texts,
-                from: "auto",
-                to: targetLang,
+                from: source.isEmpty ? "auto" : source,
+                to: target,
                 context: nil
             )
         } catch {
             return texts
         }
-    }
-
-    /// 通过 View 层的 AppleBatchTranslateHost 拿到一次本地翻译结果。
-    private func requestLocalTranslation(
-        texts: [String],
-        sourceLang: String,
-        targetLang: String
-    ) async -> [String]? {
-        await withCheckedContinuation { cont in
-            self.pendingContinuation = cont
-            self.pendingBatch = PendingBatchRequest(
-                id: UUID(),
-                texts: texts,
-                sourceLang: sourceLang.isEmpty ? nil : sourceLang,
-                targetLang: targetLang
-            )
-        }
-    }
-
-    /// View 层收到本地翻译结果时回调。nil 表示失败，需要回退。
-    func completeLocalTranslation(id: UUID, result: [String]?) {
-        guard let pending = pendingBatch, pending.id == id else { return }
-        let cont = pendingContinuation
-        pendingContinuation = nil
-        pendingBatch = nil
-        cont?.resume(returning: result)
     }
 
     private static func runVisionDescribe(
