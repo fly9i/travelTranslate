@@ -11,7 +11,9 @@ struct OCRBlock: Identifiable {
     let boundingBox: CGRect
 }
 
-/// 端侧 OCR：用 Vision VNRecognizeTextRequest 识别图像中的文字。
+/// 端侧 OCR：Vision 对大图会内部下采样，密排菜单小字常被吃掉。
+/// 策略：整图 OCR 兜底 + 2×2 分块 OCR（带 20% 重叠）并行跑，
+/// 把每个 tile 的归一化坐标映射回整图后合并去重。
 enum OCRService {
     static func recognizeText(
         in image: UIImage,
@@ -23,7 +25,40 @@ enum OCRService {
             ])
         }
 
-        return try await withCheckedThrowingContinuation { cont in
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+
+        async let fullTask: [OCRBlock] = recognize(cgImage: cgImage, languages: languages)
+
+        let tiles = computeTiles(imageSize: imageSize, rows: 2, cols: 2, overlap: 0.2)
+
+        var tileResults: [[OCRBlock]] = []
+        try await withThrowingTaskGroup(of: [OCRBlock].self) { group in
+            for tile in tiles {
+                group.addTask {
+                    guard let cropped = cgImage.cropping(to: tile) else { return [] }
+                    let blocks = try await recognize(cgImage: cropped, languages: languages)
+                    return mapTileBlocksToFullImage(
+                        blocks: blocks, tile: tile, imageSize: imageSize
+                    )
+                }
+            }
+            for try await blocks in group {
+                tileResults.append(blocks)
+            }
+        }
+
+        let full = try await fullTask
+        let merged = full + tileResults.flatMap { $0 }
+        return dedupe(merged)
+    }
+
+    // MARK: - 单次 Vision 识别
+
+    private static func recognize(
+        cgImage: CGImage,
+        languages: [String]
+    ) async throws -> [OCRBlock] {
+        try await withCheckedThrowingContinuation { cont in
             let request = VNRecognizeTextRequest { req, err in
                 if let err {
                     cont.resume(throwing: err)
@@ -63,6 +98,106 @@ enum OCRService {
                 }
             }
         }
+    }
+
+    // MARK: - 分块辅助
+
+    /// 返回像素矩形（左上原点）。每块在相邻方向上外扩 overlap，避免切到字。
+    private static func computeTiles(
+        imageSize: CGSize,
+        rows: Int,
+        cols: Int,
+        overlap: CGFloat
+    ) -> [CGRect] {
+        let tileW = imageSize.width / CGFloat(cols)
+        let tileH = imageSize.height / CGFloat(rows)
+        let padX = tileW * overlap
+        let padY = tileH * overlap
+        var tiles: [CGRect] = []
+        for r in 0..<rows {
+            for c in 0..<cols {
+                let raw = CGRect(
+                    x: CGFloat(c) * tileW - padX,
+                    y: CGFloat(r) * tileH - padY,
+                    width: tileW + padX * 2,
+                    height: tileH + padY * 2
+                )
+                let clamped = raw
+                    .intersection(CGRect(origin: .zero, size: imageSize))
+                    .integral
+                if clamped.width > 1, clamped.height > 1 {
+                    tiles.append(clamped)
+                }
+            }
+        }
+        return tiles
+    }
+
+    /// Tile 内 Vision 归一化 bbox（左下原点 0-1）→ 整图归一化 bbox。
+    private static func mapTileBlocksToFullImage(
+        blocks: [OCRBlock],
+        tile: CGRect,
+        imageSize: CGSize
+    ) -> [OCRBlock] {
+        let tw = tile.width / imageSize.width
+        let th = tile.height / imageSize.height
+        let tx = tile.minX / imageSize.width
+        // tile 是像素矩形（左上原点），其底边在 Vision（左下原点）里的 y 是：
+        let tyBottom = (imageSize.height - tile.maxY) / imageSize.height
+        return blocks.map { b in
+            let bb = b.boundingBox
+            let newBBox = CGRect(
+                x: tx + bb.minX * tw,
+                y: tyBottom + bb.minY * th,
+                width: bb.width * tw,
+                height: bb.height * th
+            )
+            return OCRBlock(
+                originalText: b.originalText,
+                translatedText: nil,
+                boundingBox: newBBox
+            )
+        }
+    }
+
+    /// 同（规范化后）文字 + IoU>0.3 视为同一块，保留面积更大的。
+    private static func dedupe(_ blocks: [OCRBlock]) -> [OCRBlock] {
+        var kept: [OCRBlock] = []
+        for b in blocks {
+            let key = normalize(b.originalText)
+            var duplicateIndex: Int?
+            for (i, k) in kept.enumerated() where normalize(k.originalText) == key {
+                if iou(b.boundingBox, k.boundingBox) > 0.3 {
+                    duplicateIndex = i
+                    break
+                }
+            }
+            if let idx = duplicateIndex {
+                if area(b.boundingBox) > area(kept[idx].boundingBox) {
+                    kept[idx] = b
+                }
+            } else {
+                kept.append(b)
+            }
+        }
+        return kept
+    }
+
+    private static func normalize(_ text: String) -> String {
+        text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func area(_ r: CGRect) -> CGFloat {
+        max(0, r.width) * max(0, r.height)
+    }
+
+    private static func iou(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let inter = a.intersection(b)
+        if inter.isNull || inter.isEmpty { return 0 }
+        let interArea = area(inter)
+        let unionArea = area(a) + area(b) - interArea
+        guard unionArea > 0 else { return 0 }
+        return interArea / unionArea
     }
 }
 
