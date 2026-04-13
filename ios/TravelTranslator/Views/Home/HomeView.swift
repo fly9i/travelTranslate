@@ -335,6 +335,7 @@ final class HomeViewModel: ObservableObject {
         latestSnapshot = snapshot
 
         // 3) 调流式视觉翻译
+        appendLog("OCR 完成 \(recognized.count) 块，正在上传图片…")
         let blocks = recognized.enumerated().map { idx, b in
             VisionTranslateStreamService.OCRBlockPayload(index: idx, text: b.originalText)
         }

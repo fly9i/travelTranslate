@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -145,6 +146,7 @@ class TextTranslateStreamService:
                 accumulated += text
                 chunk_count += 1
                 yield self._sse("delta", {"text": text})
+                await asyncio.sleep(0)
 
         logger.info(
             "anthropic text stream done: chunks=%d raw_len=%d",

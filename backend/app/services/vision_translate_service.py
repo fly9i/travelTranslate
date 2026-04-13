@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -197,12 +198,14 @@ class VisionTranslateService:
             ],
         ) as stream:
             yield self._sse("status", {"message": "模型思考中…"})
+            await asyncio.sleep(0)
             async for text in stream.text_stream:
                 if not text:
                     continue
                 accumulated += text
                 chunk_count += 1
                 yield self._sse("delta", {"text": text})
+                await asyncio.sleep(0)
 
         logger.info(
             "anthropic stream done: chunks=%d raw_len=%d", chunk_count, len(accumulated)
@@ -276,6 +279,7 @@ class VisionTranslateService:
             ],
         )
         yield self._sse("status", {"message": "模型思考中…"})
+        await asyncio.sleep(0)
         async for chunk in stream:
             if not chunk.choices:
                 continue
@@ -286,6 +290,7 @@ class VisionTranslateService:
             accumulated += text
             chunk_count += 1
             yield self._sse("delta", {"text": text})
+            await asyncio.sleep(0)
 
         logger.info(
             "openai stream done: chunks=%d raw_len=%d", chunk_count, len(accumulated)
