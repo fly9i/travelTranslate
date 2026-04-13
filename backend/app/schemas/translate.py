@@ -13,6 +13,10 @@ class TranslateRequest(BaseModel):
         default=None, description="场景上下文，如 restaurant/transport"
     )
     conversation_id: str | None = Field(default=None, description="对话 ID，可选")
+    polish: bool = Field(
+        default=False,
+        description="开启文化润色：译文语用更地道，并返回 cultural_note 文化提醒",
+    )
 
 
 class TranslateResponse(BaseModel):
@@ -23,3 +27,6 @@ class TranslateResponse(BaseModel):
     confidence: float = 1.0
     engine: str = "mock"
     cached: bool = False
+    cultural_note: str | None = Field(
+        default=None, description="文化语境提醒（仅 polish=true 时返回）"
+    )

@@ -26,6 +26,7 @@ async def translate(
         source_language=payload.source_language,
         target_language=payload.target_language,
         context=payload.context,
+        polish=payload.polish,
     )
     return TranslateResponse(
         translated_text=result.translated_text,
@@ -33,4 +34,5 @@ async def translate(
         confidence=result.confidence,
         engine=result.engine,
         cached=result.cached,
+        cultural_note=result.cultural_note,
     )
