@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 /// 拍照 / 相册 翻译结果详情页。从首页 NavigationLink 过来。
 struct CameraOCRView: View {
     let snapshot: OCRSnapshot
     @State private var showPreview = false
+    @State private var shareItem: ShareItem?
 
     var body: some View {
         GeometryReader { proxy in
@@ -50,23 +52,107 @@ struct CameraOCRView: View {
         }
         .navigationTitle("拍照翻译")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    if let img = PosterRenderer.render(snapshot: snapshot) {
+                        shareItem = ShareItem(image: img)
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("分享")
+            }
+        }
         .fullScreenCover(isPresented: $showPreview) {
-            ImagePreviewView(image: snapshot.composedImage) {
+            ImagePreviewView(snapshot: snapshot) {
                 showPreview = false
             }
         }
+        .sheet(item: $shareItem) { item in
+            ShareSheet(items: [item.image])
+        }
+    }
+}
+
+/// 给 sheet(item:) 用的包装，使 UIImage 可作为 Identifiable。
+private struct ShareItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+/// UIActivityViewController 的 SwiftUI 包装。
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+/// 把 OCRSnapshot 渲染成一张长图用于分享：顶图 + 场景卡片 + 完整译文列表。
+enum PosterRenderer {
+    @MainActor
+    static func render(snapshot: OCRSnapshot) -> UIImage? {
+        let view = SharePosterView(snapshot: snapshot)
+            .frame(width: 800)
+            .background(Color(.systemBackground))
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        return renderer.uiImage
+    }
+}
+
+/// 长图的 SwiftUI 布局。宽度交给外层指定。
+struct SharePosterView: View {
+    let snapshot: OCRSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Image(uiImage: snapshot.composedImage)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+            if let scene = snapshot.sceneType,
+               let summary = snapshot.summary,
+               !summary.isEmpty {
+                SceneSummaryCard(sceneType: scene, summary: summary)
+            }
+
+            if !snapshot.items.isEmpty {
+                Text("原文 / 译文对照（\(snapshot.items.count) 项）")
+                    .font(.title3.bold())
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(snapshot.items.enumerated()), id: \.element.id) { idx, item in
+                        TranslateItemRow(index: idx, item: item)
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Text("TravelTranslator")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(24)
     }
 }
 
 /// 全屏图片预览：支持双指捏合缩放、双击放大 / 还原、拖动平移。
 struct ImagePreviewView: View {
-    let image: UIImage
+    let snapshot: OCRSnapshot
     let onClose: () -> Void
 
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var shareItem: ShareItem?
 
     private let minScale: CGFloat = 1
     private let maxScale: CGFloat = 5
@@ -75,7 +161,7 @@ struct ImagePreviewView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            Image(uiImage: image)
+            Image(uiImage: snapshot.composedImage)
                 .resizable()
                 .scaledToFit()
                 .scaleEffect(scale)
@@ -126,8 +212,19 @@ struct ImagePreviewView: View {
                 }
 
             VStack {
-                HStack {
+                HStack(spacing: 16) {
                     Spacer()
+                    Button {
+                        if let img = PosterRenderer.render(snapshot: snapshot) {
+                            shareItem = ShareItem(image: img)
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white, .black.opacity(0.5))
+                    }
+                    .accessibilityLabel("分享")
+
                     Button {
                         onClose()
                     } label: {
@@ -135,12 +232,16 @@ struct ImagePreviewView: View {
                             .font(.system(size: 30))
                             .foregroundStyle(.white, .black.opacity(0.5))
                     }
-                    .padding()
+                    .accessibilityLabel("关闭")
                 }
+                .padding()
                 Spacer()
             }
         }
         .statusBarHidden()
+        .sheet(item: $shareItem) { item in
+            ShareSheet(items: [item.image])
+        }
     }
 }
 
