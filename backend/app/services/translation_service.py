@@ -1,5 +1,6 @@
 """翻译服务：按配置路由到 mock 字典 / Claude API。"""
 
+import json
 import logging
 from dataclasses import dataclass
 
@@ -22,6 +23,7 @@ class TranslationResult:
     confidence: float
     engine: str
     cached: bool
+    cultural_note: str | None = None
 
 
 # 兜底字典：无网络/无 API Key 时提供最小可用翻译
@@ -63,30 +65,30 @@ class TranslationService:
         source_language: str,
         target_language: str,
         context: str | None = None,
+        polish: bool = False,
     ) -> TranslationResult:
-        """翻译入口：先查缓存，再调引擎，最后兜底。"""
-        # 1) 缓存查询
-        cached = await self._get_cached(source_text, source_language, target_language)
-        if cached is not None:
-            logger.info("translation cache hit: %s -> %s", source_language, target_language)
-            return TranslationResult(
-                translated_text=cached.translated_text,
-                transliteration=cached.transliteration,
-                confidence=1.0,
-                engine=cached.engine,
-                cached=True,
-            )
+        """翻译入口：先查缓存，再调引擎，最后兜底。polish 模式不走缓存。"""
+        if not polish:
+            cached = await self._get_cached(source_text, source_language, target_language)
+            if cached is not None:
+                logger.info("translation cache hit: %s -> %s", source_language, target_language)
+                return TranslationResult(
+                    translated_text=cached.translated_text,
+                    transliteration=cached.transliteration,
+                    confidence=1.0,
+                    engine=cached.engine,
+                    cached=True,
+                )
 
-        # 2) 按配置选择引擎
         engine = self.settings.translation_engine.lower()
         try:
             if engine == "anthropic" and self.settings.anthropic_api_key:
                 result = await self._translate_with_anthropic(
-                    source_text, source_language, target_language, context
+                    source_text, source_language, target_language, context, polish
                 )
             elif engine == "openai" and self.settings.openai_api_key:
                 result = await self._translate_with_openai(
-                    source_text, source_language, target_language, context
+                    source_text, source_language, target_language, context, polish
                 )
             else:
                 result = self._translate_with_fallback(
@@ -98,13 +100,13 @@ class TranslationService:
                 source_text, source_language, target_language
             )
 
-        # 3) 写入缓存
-        await self._save_cache(
-            source_text=source_text,
-            source_language=source_language,
-            target_language=target_language,
-            result=result,
-        )
+        if not polish:
+            await self._save_cache(
+                source_text=source_text,
+                source_language=source_language,
+                target_language=target_language,
+                result=result,
+            )
         return result
 
     async def _get_cached(
@@ -166,7 +168,6 @@ class TranslationService:
                 engine="mock",
                 cached=False,
             )
-        # 最终兜底：返回原文 + 标记
         return TranslationResult(
             translated_text=f"[{target_language}] {source_text}",
             transliteration=None,
@@ -181,6 +182,7 @@ class TranslationService:
         source_language: str,
         target_language: str,
         context: str | None,
+        polish: bool,
     ) -> TranslationResult:
         """调用 Claude API 翻译。"""
         try:
@@ -189,23 +191,25 @@ class TranslationService:
             raise RuntimeError("anthropic SDK 未安装") from exc
 
         client = AsyncAnthropic(api_key=self.settings.anthropic_api_key)
-        prompt = self._build_prompt(source_text, source_language, target_language, context)
+        prompt = self._build_prompt(source_text, source_language, target_language, context, polish)
         message = await client.messages.create(
             model=self.settings.anthropic_model,
-            max_tokens=256,
+            max_tokens=512 if polish else 256,
             messages=[{"role": "user", "content": prompt}],
         )
-        translated = "".join(
+        raw = "".join(
             block.text for block in message.content if getattr(block, "type", "") == "text"
         ).strip()
-        if not translated:
+        if not raw:
             raise RuntimeError("Claude 返回空译文")
+        translated, note = self._parse_llm_output(raw, polish)
         return TranslationResult(
             translated_text=translated,
             transliteration=None,
             confidence=0.95,
             engine="anthropic",
             cached=False,
+            cultural_note=note,
         )
 
     async def _translate_with_openai(
@@ -214,6 +218,7 @@ class TranslationService:
         source_language: str,
         target_language: str,
         context: str | None,
+        polish: bool,
     ) -> TranslationResult:
         """调用 OpenAI 兼容接口翻译（支持 OpenAI / DeepSeek / 通义 / Ollama 等）。"""
         try:
@@ -225,21 +230,24 @@ class TranslationService:
             api_key=self.settings.openai_api_key,
             base_url=self.settings.openai_base_url,
         )
-        prompt = self._build_prompt(source_text, source_language, target_language, context)
+        prompt = self._build_prompt(source_text, source_language, target_language, context, polish)
         completion = await client.chat.completions.create(
             model=self.settings.openai_model,
-            max_tokens=256,
+            max_tokens=512 if polish else 256,
             messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"} if polish else None,
         )
-        translated = (completion.choices[0].message.content or "").strip()
-        if not translated:
+        raw = (completion.choices[0].message.content or "").strip()
+        if not raw:
             raise RuntimeError("OpenAI 兼容接口返回空译文")
+        translated, note = self._parse_llm_output(raw, polish)
         return TranslationResult(
             translated_text=translated,
             transliteration=None,
             confidence=0.95,
             engine="openai",
             cached=False,
+            cultural_note=note,
         )
 
     @staticmethod
@@ -248,9 +256,22 @@ class TranslationService:
         source_language: str,
         target_language: str,
         context: str | None,
+        polish: bool,
     ) -> str:
         """构造翻译提示词。"""
         scene_hint = f"场景：{context}。" if context else ""
+        if polish:
+            return (
+                f"你是一名资深的跨文化旅行翻译助手。{scene_hint}"
+                f"把下面这段 {source_language} 文本翻译到 {target_language}，"
+                "要求：\n"
+                "1) 译文要符合当地语用习惯（敬语等级、地道说法、避免直译尴尬）；\n"
+                "2) 如果存在中国游客需要注意的文化/礼仪/习惯差异，用中文写一条简短提醒；\n"
+                "3) 严格按 JSON 输出，不要加任何额外文字或 Markdown 代码块：\n"
+                '{"translated_text": "...", "cultural_note": "..."}'
+                "\n4) 若无文化提醒，cultural_note 填空字符串。\n\n"
+                f"原文：{source_text}"
+            )
         return (
             f"你是一名旅行翻译助手。{scene_hint}"
             f"请把下面这段 {source_language} 文本翻译成 {target_language}，"
@@ -258,3 +279,26 @@ class TranslationService:
             "只输出译文本身，不要附加解释或标点强调。\n\n"
             f"原文：{source_text}"
         )
+
+    @staticmethod
+    def _parse_llm_output(raw: str, polish: bool) -> tuple[str, str | None]:
+        """解析 LLM 输出。polish 模式下尝试 JSON 解析，失败则原样当译文。"""
+        if not polish:
+            return raw, None
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            # 去掉 ```json ... ``` 包装
+            stripped = stripped.strip("`")
+            if stripped.lower().startswith("json"):
+                stripped = stripped[4:].strip()
+        try:
+            data = json.loads(stripped)
+            translated = str(data.get("translated_text", "")).strip()
+            note_raw = data.get("cultural_note")
+            note = str(note_raw).strip() if note_raw else None
+            if not translated:
+                return raw, None
+            return translated, (note or None)
+        except (json.JSONDecodeError, AttributeError):
+            logger.warning("polish 模式 JSON 解析失败，原样返回")
+            return raw, None
