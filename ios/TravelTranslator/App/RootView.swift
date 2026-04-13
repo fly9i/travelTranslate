@@ -10,8 +10,8 @@ struct RootView: View {
             NavigationStack { SceneListView() }
                 .tabItem { Label("场景", systemImage: "square.grid.2x2") }
 
-            NavigationStack { FavoritesView() }
-                .tabItem { Label("收藏", systemImage: "star") }
+            NavigationStack { HistoryView() }
+                .tabItem { Label("历史", systemImage: "clock") }
 
             NavigationStack { SettingsView() }
                 .tabItem { Label("设置", systemImage: "gearshape") }

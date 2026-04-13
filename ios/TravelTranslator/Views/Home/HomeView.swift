@@ -293,6 +293,13 @@ final class HomeViewModel: ObservableObject {
                         cached: false,
                         culturalNote: payload.culturalNote
                     )
+                    HistoryStore.shared.addText(
+                        source: input,
+                        translated: payload.translatedText,
+                        sourceLanguage: source,
+                        targetLanguage: target,
+                        culturalNote: payload.culturalNote
+                    )
                 case .error(let msg):
                     translateError = msg
                 }
@@ -366,6 +373,12 @@ final class HomeViewModel: ObservableObject {
                     )
                     latestSnapshot = snapshot
                     appendLog("完成：\(payload.items.count) 项")
+                    HistoryStore.shared.addVision(
+                        image: snapshot.composedImage,
+                        items: snapshot.items,
+                        sceneType: snapshot.sceneType,
+                        summary: snapshot.summary
+                    )
                 case .error(let msg):
                     ocrError = msg
                 }
