@@ -3,11 +3,13 @@ import SwiftUI
 /// 拍照 / 相册 翻译结果详情页。从首页 NavigationLink 过来。
 struct CameraOCRView: View {
     let snapshot: OCRSnapshot
+    @State private var showPreview = false
 
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 // 顶部固定图片：高度上限为可用高度的 40%，滚动译文时保持可见
+                // 点击进入全屏预览（支持双指缩放 / 双击放大 / 拖动）
                 Image(uiImage: snapshot.composedImage)
                     .resizable()
                     .scaledToFit()
@@ -15,6 +17,8 @@ struct CameraOCRView: View {
                     .frame(maxHeight: proxy.size.height * 0.4)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding([.horizontal, .top])
+                    .contentShape(Rectangle())
+                    .onTapGesture { showPreview = true }
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -46,6 +50,97 @@ struct CameraOCRView: View {
         }
         .navigationTitle("拍照翻译")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $showPreview) {
+            ImagePreviewView(image: snapshot.composedImage) {
+                showPreview = false
+            }
+        }
+    }
+}
+
+/// 全屏图片预览：支持双指捏合缩放、双击放大 / 还原、拖动平移。
+struct ImagePreviewView: View {
+    let image: UIImage
+    let onClose: () -> Void
+
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    private let minScale: CGFloat = 1
+    private let maxScale: CGFloat = 5
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(
+                    SimultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let newScale = lastScale * value
+                                scale = min(max(newScale, minScale), maxScale)
+                            }
+                            .onEnded { _ in
+                                lastScale = scale
+                                if scale <= minScale {
+                                    withAnimation(.spring()) {
+                                        scale = minScale
+                                        lastScale = minScale
+                                        offset = .zero
+                                        lastOffset = .zero
+                                    }
+                                }
+                            },
+                        DragGesture()
+                            .onChanged { value in
+                                guard scale > minScale else { return }
+                                offset = CGSize(
+                                    width: lastOffset.width + value.translation.width,
+                                    height: lastOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastOffset = offset
+                            }
+                    )
+                )
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring()) {
+                        if scale > minScale {
+                            scale = minScale
+                            lastScale = minScale
+                            offset = .zero
+                            lastOffset = .zero
+                        } else {
+                            scale = 2.5
+                            lastScale = 2.5
+                        }
+                    }
+                }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white, .black.opacity(0.5))
+                    }
+                    .padding()
+                }
+                Spacer()
+            }
+        }
+        .statusBarHidden()
     }
 }
 
