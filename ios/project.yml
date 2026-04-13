@@ -53,7 +53,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        API_BASE_URL: "http://192.168.1.177:8000"
+        API_BASE_URL: "http://192.168.1.148:8000"
         NSMicrophoneUsageDescription: "用于语音输入以进行翻译。"
         NSSpeechRecognitionUsageDescription: "用于语音识别以生成翻译文本。"
         NSCameraUsageDescription: "用于拍照翻译菜单或路牌。"
