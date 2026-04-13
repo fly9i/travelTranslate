@@ -128,7 +128,7 @@ class VisionTranslateService:
             f"每条带编号。{dest_hint}图中文字语言：{source_language}，目标译文语言：{target_language}。\n\n"
             "请完成三件事：\n"
             "1. 判断场景类型（menu / sign / receipt / document / ticket / other）；\n"
-            "2. 把 OCR 文字块按"项目"聚合并输出。\n"
+            "2. 把 OCR 文字块按「项目」聚合并输出。\n"
             "   ⚠️ 必须做到穷举，不要做主观筛选：\n"
             "     - menu 场景：每一道菜（含开胃菜、主菜、沙拉、甜点、饮品等）都必须输出一项，\n"
             "       即使你觉得它不重要、价格不全、或描述只有一行也要输出。漏菜是严重错误。\n"
