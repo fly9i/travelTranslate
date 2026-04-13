@@ -101,10 +101,12 @@ async def test_translate_batch_google_mock(monkeypatch: pytest.MonkeyPatch) -> N
         async def __aexit__(self, *args) -> None:
             return None
 
-        async def post(self, url: str, params: dict, data: list) -> MockResponse:
+        async def post(
+            self, url: str, params: dict, json: dict
+        ) -> MockResponse:
             captured["url"] = url
             captured["params"] = params
-            captured["data"] = data
+            captured["json"] = json
             return MockResponse()
 
     monkeypatch.setattr(ts_mod.httpx, "AsyncClient", MockAsyncClient)
@@ -121,11 +123,11 @@ async def test_translate_batch_google_mock(monkeypatch: pytest.MonkeyPatch) -> N
     )
     assert results == ["Hello", "Thank 'you'", "Where is the restroom?"]
     assert captured["params"] == {"key": "fake-key"}
-    # source zh 应该被规范化为 zh-CN
-    assert ("source", "zh-CN") in captured["data"]
-    assert ("target", "en") in captured["data"]
-    q_values = [v for k, v in captured["data"] if k == "q"]
-    assert q_values == ["你好", "谢谢", "洗手间在哪里"]
+    body = captured["json"]
+    assert body["source"] == "zh-CN"
+    assert body["target"] == "en"
+    assert body["format"] == "text"
+    assert body["q"] == ["你好", "谢谢", "洗手间在哪里"]
 
 
 @pytest.mark.asyncio
