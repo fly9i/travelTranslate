@@ -7,6 +7,7 @@ struct TranslationResult: Codable {
     let confidence: Double
     let engine: String
     let cached: Bool
+    let culturalNote: String?
 
     enum CodingKeys: String, CodingKey {
         case translatedText = "translated_text"
@@ -14,6 +15,7 @@ struct TranslationResult: Codable {
         case confidence
         case engine
         case cached
+        case culturalNote = "cultural_note"
     }
 }
 
@@ -23,12 +25,14 @@ struct TranslateRequest: Encodable {
     let sourceLanguage: String
     let targetLanguage: String
     let context: String?
+    let polish: Bool
 
     enum CodingKeys: String, CodingKey {
         case sourceText = "source_text"
         case sourceLanguage = "source_language"
         case targetLanguage = "target_language"
         case context
+        case polish
     }
 }
 
@@ -40,13 +44,15 @@ final class TranslationService {
         text: String,
         from source: String = "zh",
         to target: String,
-        context: String? = nil
+        context: String? = nil,
+        polish: Bool = false
     ) async throws -> TranslationResult {
         let body = TranslateRequest(
             sourceText: text,
             sourceLanguage: source,
             targetLanguage: target,
-            context: context
+            context: context,
+            polish: polish
         )
         return try await APIClient.shared.post("/api/v1/translate", body: body)
     }
