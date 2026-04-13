@@ -69,9 +69,21 @@ struct HomeView: View {
                     Text("错误：\(error)").foregroundStyle(.red)
                 }
 
-                NavigationLink("进入实时对话模式 →") {
+                NavigationLink {
                     ConversationView()
+                } label: {
+                    Label("进入实时对话模式", systemImage: "bubble.left.and.bubble.right")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
+
+                NavigationLink {
+                    CameraOCRView()
+                } label: {
+                    Label("拍照翻译（菜单 / 路牌）", systemImage: "camera.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
             .padding()
         }
