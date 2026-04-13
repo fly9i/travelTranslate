@@ -38,6 +38,7 @@
 		EB475E3F6BC5B11D5C53D3FB /* VisionDescribeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC82FCCD666A209BCB1884A4 /* VisionDescribeService.swift */; };
 		F6A4E738C3B8EDF36A2F19F9 /* CameraOCRView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D0E588CC6C8C7416AD17D6 /* CameraOCRView.swift */; };
 		F8AEC5E64F040B1A442A68F8 /* TravelTranslatorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A456C1AD78486AD3AC175C4C /* TravelTranslatorApp.swift */; };
+		F1A55E7000000000000000A2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F1A55E7000000000000000A1 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 		3E0DD20C83C1CD2CA521DDA1 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
 		4BD2274BAE7C82FD6A909C3B /* CameraPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
 		51A188F34C7F85A03AFB335E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F1A55E7000000000000000A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		52D0E588CC6C8C7416AD17D6 /* CameraOCRView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraOCRView.swift; sourceTree = "<group>"; };
 		54DD22CACFC009B4C7132226 /* SceneListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneListView.swift; sourceTree = "<group>"; };
 		60E12DFB523015F5B7025F6C /* PhraseCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseCardView.swift; sourceTree = "<group>"; };
@@ -81,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				51A188F34C7F85A03AFB335E /* Info.plist */,
+				F1A55E7000000000000000A1 /* Assets.xcassets */,
 				C3161AECF7BF5588E907063A /* App */,
 				357737CDB7986FAD616A110A /* Models */,
 				3588DF5D77B4FDCAF91E9F82 /* Services */,
@@ -236,6 +239,7 @@
 			buildConfigurationList = 74A18DCB91A7B9D988E92D08 /* Build configuration list for PBXNativeTarget "TravelTranslator" */;
 			buildPhases = (
 				5C797EE938459C7DCC8863E2 /* Sources */,
+				F1A55E7000000000000000A3 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -321,6 +325,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F1A55E7000000000000000A3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1A55E7000000000000000A2 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		08A8B8E69DBF886D40CCEB10 /* Release */ = {
@@ -453,7 +468,7 @@
 		5A5E9473BF590245160AD442 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = GH2N7UV768;
 				ENABLE_PREVIEWS = YES;
@@ -475,7 +490,7 @@
 		FE8E83866760C6DD05971663 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = GH2N7UV768;
 				ENABLE_PREVIEWS = YES;
