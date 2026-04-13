@@ -5,9 +5,11 @@ import Foundation
 final class AppState: ObservableObject {
     @Published var destination: Destination = Destinations.all[0]
 
-    func switchDestination() {
-        let list = Destinations.all
-        guard let idx = list.firstIndex(where: { $0.code == destination.code }) else { return }
-        destination = list[(idx + 1) % list.count]
+    /// 根据定位结果设置默认目的地。没匹配到或权限被拒则保留当前值。
+    func bootstrapFromLocation() async {
+        guard let code = await LocationService.shared.currentCountryCode() else { return }
+        if let matched = Destinations.byCountryCode(code) {
+            destination = matched
+        }
     }
 }
