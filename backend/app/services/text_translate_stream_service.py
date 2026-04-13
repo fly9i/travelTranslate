@@ -136,7 +136,7 @@ class TextTranslateStreamService:
         chunk_count = 0
         async with client.messages.stream(
             model=self.settings.anthropic_model,
-            max_tokens=512 if polish else 256,
+            max_tokens=self.settings.max_tokens_text,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
             yield self._sse("status", {"message": "模型思考中…"})
@@ -199,7 +199,7 @@ class TextTranslateStreamService:
         chunk_count = 0
         kwargs: dict = {
             "model": self.settings.openai_model,
-            "max_tokens": 512 if polish else 256,
+            "max_tokens": self.settings.max_tokens_text,
             "stream": True,
             "messages": [{"role": "user", "content": prompt}],
         }

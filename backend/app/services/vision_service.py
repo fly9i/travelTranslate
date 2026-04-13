@@ -122,7 +122,7 @@ class VisionService:
         prompt = self._build_prompt(joined, source_language, user_language, destination, hint)
         message = await client.messages.create(
             model=self.settings.anthropic_model,
-            max_tokens=2048,
+            max_tokens=self.settings.max_tokens_vision,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = "".join(
@@ -150,7 +150,7 @@ class VisionService:
         prompt = self._build_prompt(joined, source_language, user_language, destination, hint)
         kwargs: dict = {
             "model": self.settings.openai_model,
-            "max_tokens": 2048,
+            "max_tokens": self.settings.max_tokens_vision,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_object"},
         }

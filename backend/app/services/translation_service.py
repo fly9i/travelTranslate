@@ -164,7 +164,7 @@ class TranslationService:
         )
         message = await client.messages.create(
             model=self.settings.anthropic_model,
-            max_tokens=max(512, 64 * len(source_texts)),
+            max_tokens=self.settings.max_tokens_batch,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = "".join(
@@ -194,7 +194,7 @@ class TranslationService:
         )
         kwargs: dict = {
             "model": self.settings.openai_model,
-            "max_tokens": max(512, 64 * len(source_texts)),
+            "max_tokens": self.settings.max_tokens_batch,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_object"},
         }
@@ -344,7 +344,7 @@ class TranslationService:
         prompt = self._build_prompt(source_text, source_language, target_language, context, polish)
         message = await client.messages.create(
             model=self.settings.anthropic_model,
-            max_tokens=512 if polish else 256,
+            max_tokens=self.settings.max_tokens_text,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = "".join(
@@ -383,7 +383,7 @@ class TranslationService:
         prompt = self._build_prompt(source_text, source_language, target_language, context, polish)
         kwargs: dict = {
             "model": self.settings.openai_model,
-            "max_tokens": 512 if polish else 256,
+            "max_tokens": self.settings.max_tokens_text,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_object"} if polish else None,
         }

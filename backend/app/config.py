@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # 比如 {"enable_thinking": true} 开启深度思考。留空则不传。
     openai_extra_body: str = ""
 
+    # max_tokens 上限（anthropic / openai 共用同一参数名，此处按场景划分）
+    max_tokens_text: int = 512       # 单条 / 文本流 / polish
+    max_tokens_batch: int = 2048     # 批量翻译
+    max_tokens_vision: int = 4096    # 视觉流式 + 场景理解
+
     @property
     def openai_extra_body_dict(self) -> dict:
         """把 openai_extra_body 解析成 dict；失败或为空返回空 dict。"""

@@ -179,7 +179,7 @@ class VisionTranslateService:
         chunk_count = 0
         async with client.messages.stream(
             model=self.settings.anthropic_model,
-            max_tokens=4096,
+            max_tokens=self.settings.max_tokens_vision,
             messages=[
                 {
                     "role": "user",
@@ -266,7 +266,7 @@ class VisionTranslateService:
         chunk_count = 0
         kwargs: dict = {
             "model": self.settings.openai_model,
-            "max_tokens": 4096,
+            "max_tokens": self.settings.max_tokens_vision,
             "stream": True,
             "messages": [
                 {
