@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # max_tokens 上限（anthropic / openai 共用同一参数名，此处按场景划分）
     max_tokens_text: int = 512       # 单条 / 文本流 / polish
     max_tokens_batch: int = 2048     # 批量翻译
-    max_tokens_vision: int = 4096    # 视觉流式 + 场景理解
+    max_tokens_vision: int = 8192    # 视觉流式 + 场景理解（菜单 30+ 项需要更大上限）
 
     @property
     def openai_extra_body_dict(self) -> dict:
