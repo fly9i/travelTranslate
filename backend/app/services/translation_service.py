@@ -167,14 +167,16 @@ class TranslationService:
         """
         url = f"{self.settings.google_translate_base_url}/language/translate/v2"
         params = {"key": self.settings.google_translate_api_key}
-        data: list[tuple[str, str]] = [("q", t) for t in source_texts]
-        data.append(("target", self._normalize_google_lang(target_language)))
-        data.append(("format", "text"))
+        body: dict[str, object] = {
+            "q": list(source_texts),
+            "target": self._normalize_google_lang(target_language),
+            "format": "text",
+        }
         if source_language and source_language.lower() != "auto":
-            data.append(("source", self._normalize_google_lang(source_language)))
+            body["source"] = self._normalize_google_lang(source_language)
 
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(url, params=params, data=data)
+            resp = await client.post(url, params=params, json=body)
         if resp.status_code != 200:
             logger.error(
                 "google translate failed: status=%s body=%s", resp.status_code, resp.text
