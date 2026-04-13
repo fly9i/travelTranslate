@@ -1,11 +1,9 @@
 """翻译服务：按配置路由到 mock 字典 / Claude API。"""
 
-import html
 import json
 import logging
 from dataclasses import dataclass
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,16 +123,9 @@ class TranslationService:
         if not source_texts:
             return [], "mock"
 
-        engine = self.settings.batch_translation_engine.lower()
-        if engine == "inherit":
-            engine = self.settings.translation_engine.lower()
+        engine = self.settings.translation_engine.lower()
 
         try:
-            if engine == "google" and self.settings.google_translate_api_key:
-                results = await self._batch_google(
-                    source_texts, source_language, target_language
-                )
-                return results, "google"
             if engine == "anthropic" and self.settings.anthropic_api_key:
                 results = await self._batch_anthropic(
                     source_texts, source_language, target_language, context
@@ -153,65 +144,6 @@ class TranslationService:
             for t in source_texts
         ]
         return results, "mock"
-
-    async def _batch_google(
-        self,
-        source_texts: list[str],
-        source_language: str,
-        target_language: str,
-    ) -> list[str]:
-        """调用 Google Cloud Translation v2 REST API 批量翻译。
-
-        一次 POST 可带多个 q 字段，响应顺序与请求顺序一致。
-        v2 比 v3 好处是不需要 Google Cloud project id，只要 API key。
-        """
-        url = f"{self.settings.google_translate_base_url}/language/translate/v2"
-        params = {"key": self.settings.google_translate_api_key}
-        body: dict[str, object] = {
-            "q": list(source_texts),
-            "target": self._normalize_google_lang(target_language),
-            "format": "text",
-        }
-        if source_language and source_language.lower() != "auto":
-            body["source"] = self._normalize_google_lang(source_language)
-
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(url, params=params, json=body)
-        if resp.status_code != 200:
-            logger.error(
-                "google translate failed: status=%s body=%s", resp.status_code, resp.text
-            )
-            raise RuntimeError(f"google translate http {resp.status_code}")
-
-        payload = resp.json()
-        items = (payload.get("data") or {}).get("translations") or []
-        if len(items) != len(source_texts):
-            logger.warning(
-                "google translate item count mismatch: got %d expected %d",
-                len(items),
-                len(source_texts),
-            )
-        results: list[str] = []
-        for idx, original in enumerate(source_texts):
-            if idx < len(items):
-                translated = items[idx].get("translatedText") or ""
-                # Google 返回的 translatedText 会 HTML 转义 & ' " 等字符，解回来
-                results.append(html.unescape(translated) if translated else original)
-            else:
-                results.append(original)
-        return results
-
-    @staticmethod
-    def _normalize_google_lang(code: str) -> str:
-        """把项目里的语言码映射到 Google Translate 支持的 BCP-47 代码。"""
-        mapping = {
-            "zh": "zh-CN",
-            "zh-hans": "zh-CN",
-            "zh-hant": "zh-TW",
-            "jp": "ja",
-            "kr": "ko",
-        }
-        return mapping.get(code.lower(), code)
 
     async def _batch_anthropic(
         self,

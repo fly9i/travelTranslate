@@ -3,6 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,6 +14,7 @@ from app.schemas.translate import (
     TranslateRequest,
     TranslateResponse,
 )
+from app.services.text_translate_stream_service import TextTranslateStreamService
 from app.services.translation_service import TranslationService
 
 logger = logging.getLogger(__name__)
@@ -62,3 +64,25 @@ async def translate_batch(
         for src, tr in zip(payload.source_texts, translated, strict=False)
     ]
     return TranslateBatchResponse(items=items, engine=engine)
+
+
+@router.post("/stream")
+async def translate_stream(payload: TranslateRequest) -> StreamingResponse:
+    """文本翻译的 SSE 流式接口。事件：status / delta / final / error。"""
+    service = TextTranslateStreamService()
+    generator = service.stream(
+        source_text=payload.source_text,
+        source_language=payload.source_language,
+        target_language=payload.target_language,
+        polish=payload.polish,
+        context=payload.context,
+    )
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

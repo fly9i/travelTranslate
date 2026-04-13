@@ -2,7 +2,16 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import conversations, favorites, ocr, phrases, speech, translate, vision
+from app.api.v1 import (
+    conversations,
+    favorites,
+    ocr,
+    phrases,
+    speech,
+    translate,
+    vision,
+    vision_translate,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(translate.router)
@@ -12,3 +21,4 @@ api_router.include_router(favorites.router)
 api_router.include_router(ocr.router)
 api_router.include_router(speech.router)
 api_router.include_router(vision.router)
+api_router.include_router(vision_translate.router)

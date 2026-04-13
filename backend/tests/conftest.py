@@ -11,8 +11,6 @@ from httpx import ASGITransport, AsyncClient
 # 在导入应用前设置测试环境变量（覆盖用户 .env，避免真实 API 被调用）
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["TRANSLATION_ENGINE"] = "mock"
-os.environ["BATCH_TRANSLATION_ENGINE"] = "inherit"
-os.environ["GOOGLE_TRANSLATE_API_KEY"] = ""
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["APP_DEBUG"] = "false"

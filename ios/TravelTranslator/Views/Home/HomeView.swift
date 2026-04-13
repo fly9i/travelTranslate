@@ -14,10 +14,8 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 capturePanel
-                if viewModel.loadingOCR {
-                    ProgressView(viewModel.loadingMessage)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                if !viewModel.streamLog.isEmpty {
+                    streamLogView
                 }
                 if let error = viewModel.ocrError {
                     Text(error).foregroundStyle(.red).font(.footnote)
@@ -135,6 +133,23 @@ struct HomeView: View {
         }
     }
 
+    /// 流式状态：最多展示最后两行，窄灰底滚动感。
+    private var streamLogView: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(viewModel.streamLog.suffix(2).enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(8)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
     private func latestResultCard(_ snapshot: OCRSnapshot) -> some View {
         NavigationLink {
             CameraOCRView(snapshot: snapshot)
@@ -145,8 +160,8 @@ struct HomeView: View {
                     .scaledToFit()
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                if let desc = snapshot.description {
-                    Text(desc.summary)
+                if let summary = snapshot.summary, !summary.isEmpty {
+                    Text(summary)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
@@ -172,7 +187,7 @@ struct HomeView: View {
                 .textFieldStyle(.roundedBorder)
             Button {
                 Task {
-                    await viewModel.translate(
+                    await viewModel.translateStream(
                         source: appState.userLocale.language,
                         target: appState.destination.language,
                         polish: appState.culturalPolish
@@ -188,8 +203,12 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
             .disabled(viewModel.input.isEmpty || viewModel.loadingTranslate)
 
-            if let result = viewModel.result {
-                resultCard(source: viewModel.input, result: result)
+            if !viewModel.liveTranslation.isEmpty || viewModel.result != nil {
+                resultCard(
+                    source: viewModel.input,
+                    liveText: viewModel.liveTranslation,
+                    result: viewModel.result
+                )
             }
             if let error = viewModel.translateError {
                 Text("错误：\(error)").foregroundStyle(.red).font(.footnote)
@@ -197,14 +216,15 @@ struct HomeView: View {
         }
     }
 
-    private func resultCard(source: String, result: TranslationResult) -> some View {
+    private func resultCard(
+        source: String,
+        liveText: String,
+        result: TranslationResult?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(source).foregroundStyle(.secondary)
-            Text(result.translatedText).font(.title3).bold()
-            if let tl = result.transliteration {
-                Text(tl).font(.footnote).foregroundStyle(.secondary)
-            }
-            if let note = result.culturalNote, !note.isEmpty {
+            Text(result?.translatedText ?? liveText).font(.title3).bold()
+            if let note = result?.culturalNote, !note.isEmpty {
                 Label(note, systemImage: "lightbulb")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -215,12 +235,14 @@ struct HomeView: View {
             }
             HStack {
                 Spacer()
-                NavigationLink {
-                    FullScreenDisplayView(source: source, target: result.translatedText)
-                } label: {
-                    Label("展示给对方", systemImage: "tv")
+                if let result {
+                    NavigationLink {
+                        FullScreenDisplayView(source: source, target: result.translatedText)
+                    } label: {
+                        Label("展示给对方", systemImage: "tv")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
         .padding()
@@ -234,38 +256,61 @@ final class HomeViewModel: ObservableObject {
     @Published var input: String = ""
     @Published var loadingTranslate = false
     @Published var result: TranslationResult?
+    @Published var liveTranslation: String = ""
     @Published var translateError: String?
 
     @Published var latestSnapshot: OCRSnapshot?
-    @Published var loadingOCR = false
-    @Published var loadingMessage: String = ""
+    @Published var streamLog: [String] = []
     @Published var ocrError: String?
 
-    func translate(source: String, target: String, polish: Bool) async {
+    /// 流式文本翻译：走 /api/v1/translate/stream。
+    func translateStream(source: String, target: String, polish: Bool) async {
         guard !input.isEmpty else { return }
         loadingTranslate = true
         translateError = nil
+        result = nil
+        liveTranslation = ""
+
+        let stream = TranslateStreamService.stream(
+            sourceText: input,
+            sourceLanguage: source,
+            targetLanguage: target,
+            polish: polish
+        )
         do {
-            result = try await TranslationService.shared.translate(
-                text: input,
-                from: source,
-                to: target,
-                context: nil,
-                polish: polish
-            )
+            for try await event in stream {
+                switch event {
+                case .status:
+                    break
+                case .delta(let text):
+                    liveTranslation += text
+                case .final(let payload):
+                    result = TranslationResult(
+                        translatedText: payload.translatedText,
+                        transliteration: nil,
+                        confidence: 0.95,
+                        engine: payload.engine,
+                        cached: false,
+                        culturalNote: payload.culturalNote
+                    )
+                case .error(let msg):
+                    translateError = msg
+                }
+            }
         } catch {
             translateError = error.localizedDescription
         }
         loadingTranslate = false
     }
 
+    /// 图片流程：本地 OCR → 流式调 LLM → 解析 final → 生成带彩色框的标注图。
     func process(image: UIImage, appState: AppState) async {
-        loadingOCR = true
         ocrError = nil
         latestSnapshot = nil
-        defer { loadingOCR = false }
+        streamLog.removeAll()
 
-        loadingMessage = "正在识别文字…"
+        // 1) 本地 OCR
+        appendLog("正在识别文字…")
         let recognized: [OCRBlock]
         do {
             recognized = try await OCRService.recognizeText(in: image)
@@ -278,81 +323,112 @@ final class HomeViewModel: ObservableObject {
             return
         }
 
-        // 图像标注一次生成：每个块上加彩色框 + 编号，下方列表靠颜色对照
-        let annotated = OCRCompositor.annotate(image: image, blocks: recognized)
+        // 2) 初始 snapshot：还没翻译，先放原图
         var snapshot = OCRSnapshot(
             originalImage: image,
-            composedImage: annotated,
-            blocks: recognized,
-            description: nil
+            composedImage: image,
+            rawBlocks: recognized,
+            items: [],
+            sceneType: nil,
+            summary: nil
         )
         latestSnapshot = snapshot
 
-        loadingMessage = "正在批量翻译 \(recognized.count) 条…"
-        var blocks = recognized
-        let texts = recognized.map { $0.originalText }
-        let targetLang = appState.userLocale.language
-        let sourceLang = appState.destination.language
-        let destName = appState.destination.name
-
-        async let translationTask = Self.runBatchTranslate(
-            texts: texts,
-            source: sourceLang,
-            target: targetLang
-        )
-        async let descriptionTask = Self.runVisionDescribe(
-            texts: texts,
-            source: sourceLang,
-            userLang: targetLang,
-            destination: destName
-        )
-
-        let translations = await translationTask
-        for (idx, tr) in translations.enumerated() where idx < blocks.count {
-            blocks[idx].translatedText = tr
+        // 3) 调流式视觉翻译
+        let blocks = recognized.enumerated().map { idx, b in
+            VisionTranslateStreamService.OCRBlockPayload(index: idx, text: b.originalText)
         }
-        snapshot.blocks = blocks
-        latestSnapshot = snapshot
+        let stream = VisionTranslateStreamService.stream(
+            image: image,
+            blocks: blocks,
+            sourceLanguage: appState.destination.language,
+            targetLanguage: appState.userLocale.language,
+            destination: appState.destination.name
+        )
 
-        let desc = await descriptionTask
-        if let desc {
-            snapshot.description = desc
-            latestSnapshot = snapshot
+        var accumulatedDelta = ""
+        do {
+            for try await event in stream {
+                switch event {
+                case .status(let msg):
+                    appendLog(msg)
+                case .delta(let text):
+                    accumulatedDelta += text
+                    // 只显示最后 60 个字符，模拟滚动
+                    let tail = String(accumulatedDelta.suffix(60))
+                    appendLog(tail)
+                case .final(let payload):
+                    snapshot = Self.applyFinal(
+                        payload: payload,
+                        snapshot: snapshot,
+                        originalImage: image
+                    )
+                    latestSnapshot = snapshot
+                    appendLog("完成：\(payload.items.count) 项")
+                case .error(let msg):
+                    ocrError = msg
+                }
+            }
+        } catch {
+            ocrError = error.localizedDescription
         }
     }
 
-    private static func runBatchTranslate(
-        texts: [String],
-        source: String,
-        target: String
-    ) async -> [String] {
-        do {
-            return try await TranslationService.shared.translateBatch(
-                texts: texts,
-                from: source.isEmpty ? "auto" : source,
-                to: target,
-                context: nil
-            )
-        } catch {
-            return texts
+    private func appendLog(_ line: String) {
+        streamLog.append(line)
+        if streamLog.count > 20 {
+            streamLog.removeFirst(streamLog.count - 20)
         }
     }
 
-    private static func runVisionDescribe(
-        texts: [String],
-        source: String,
-        userLang: String,
-        destination: String
-    ) async -> VisionDescribeResult? {
-        do {
-            return try await VisionDescribeService.shared.describe(
-                ocrTexts: texts,
-                sourceLanguage: source,
-                userLanguage: userLang,
-                destination: destination
+    /// 把 LLM final 结果落地：按 ocr_indices 合并原始 bbox，生成标注图。
+    private static func applyFinal(
+        payload: VisionTranslateFinal,
+        snapshot: OCRSnapshot,
+        originalImage: UIImage
+    ) -> OCRSnapshot {
+        let rawBlocks = snapshot.rawBlocks
+        var items: [ResolvedTranslateItem] = []
+        var unionBoxes: [CGRect] = []
+        for item in payload.items {
+            let bbox = unionBBox(indices: item.ocrIndices, blocks: rawBlocks)
+            items.append(
+                ResolvedTranslateItem(
+                    sourceText: item.sourceText,
+                    translatedText: item.translatedText,
+                    note: item.note,
+                    boundingBox: bbox ?? .zero
+                )
             )
-        } catch {
-            return nil
+            if let bbox {
+                unionBoxes.append(bbox)
+            } else {
+                unionBoxes.append(.zero)
+            }
         }
+        let composed = OCRCompositor.annotate(
+            image: originalImage,
+            boxes: unionBoxes
+        )
+        var next = snapshot
+        next.composedImage = composed
+        next.items = items
+        next.sceneType = payload.sceneType
+        next.summary = payload.summary
+        return next
+    }
+
+    /// 把多个 OCR 块的 Vision 归一化 bbox 合并成一个外接矩形。
+    private static func unionBBox(indices: [Int], blocks: [OCRBlock]) -> CGRect? {
+        var result: CGRect? = nil
+        for i in indices where i >= 0 && i < blocks.count {
+            let r = blocks[i].boundingBox
+            if let current = result {
+                result = current.union(r)
+            } else {
+                result = r
+            }
+        }
+        return result
     }
 }

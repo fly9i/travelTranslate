@@ -69,68 +69,6 @@ async def test_translate_batch_fallback(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_translate_batch_google_mock(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Google engine：mock httpx，验证顺序 + HTML 转义解码 + 语种映射。"""
-    from app.services import translation_service as ts_mod
-
-    captured: dict = {}
-
-    class MockResponse:
-        status_code = 200
-        text = ""
-
-        @staticmethod
-        def json() -> dict:
-            return {
-                "data": {
-                    "translations": [
-                        {"translatedText": "Hello"},
-                        {"translatedText": "Thank &#39;you&#39;"},
-                        {"translatedText": "Where is the restroom?"},
-                    ]
-                }
-            }
-
-    class MockAsyncClient:
-        def __init__(self, *args, **kwargs) -> None:
-            pass
-
-        async def __aenter__(self) -> "MockAsyncClient":
-            return self
-
-        async def __aexit__(self, *args) -> None:
-            return None
-
-        async def post(
-            self, url: str, params: dict, json: dict
-        ) -> MockResponse:
-            captured["url"] = url
-            captured["params"] = params
-            captured["json"] = json
-            return MockResponse()
-
-    monkeypatch.setattr(ts_mod.httpx, "AsyncClient", MockAsyncClient)
-
-    service = ts_mod.TranslationService(db=None)  # type: ignore[arg-type]
-    service.settings = ts_mod.Settings(
-        google_translate_api_key="fake-key",
-        google_translate_base_url="https://translation.googleapis.com",
-    )
-    results = await service._batch_google(
-        ["你好", "谢谢", "洗手间在哪里"],
-        source_language="zh",
-        target_language="en",
-    )
-    assert results == ["Hello", "Thank 'you'", "Where is the restroom?"]
-    assert captured["params"] == {"key": "fake-key"}
-    body = captured["json"]
-    assert body["source"] == "zh-CN"
-    assert body["target"] == "en"
-    assert body["format"] == "text"
-    assert body["q"] == ["你好", "谢谢", "洗手间在哪里"]
-
-
-@pytest.mark.asyncio
 async def test_translate_batch_parser() -> None:
     """批量解析器：缺项用原文兜底、乱数据整体兜底。"""
     from app.services.translation_service import TranslationService

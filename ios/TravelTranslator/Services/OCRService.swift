@@ -88,7 +88,13 @@ enum OCRBlockPalette {
 /// 把 OCR 文本块"标注"到原图上：给每个块画一个对应颜色的矩形框，
 /// 并在框的左上角压一个实心圆点 + 编号，方便用户和下方译文对照。
 enum OCRCompositor {
+    /// 兼容旧 API：直接从 OCRBlock 数组标注。
     static func annotate(image: UIImage, blocks: [OCRBlock]) -> UIImage {
+        annotate(image: image, boxes: blocks.map { $0.boundingBox })
+    }
+
+    /// 给定 Vision 归一化 bbox 数组，在原图上画彩色框 + 编号徽章。按下标取色。
+    static func annotate(image: UIImage, boxes: [CGRect]) -> UIImage {
         let size = image.size
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
@@ -102,9 +108,10 @@ enum OCRCompositor {
             image.draw(in: CGRect(origin: .zero, size: size))
             let cg = ctx.cgContext
 
-            for (idx, block) in blocks.enumerated() {
+            for (idx, bbox) in boxes.enumerated() {
+                if bbox == .zero { continue }
                 let color = OCRBlockPalette.uiColor(at: idx)
-                let rect = pixelRect(for: block.boundingBox, imageSize: size)
+                let rect = pixelRect(for: bbox, imageSize: size)
                 let padded = rect.insetBy(dx: -rect.width * 0.03, dy: -rect.height * 0.15)
 
                 // 1) 框线
