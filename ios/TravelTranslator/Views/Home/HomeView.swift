@@ -278,14 +278,15 @@ final class HomeViewModel: ObservableObject {
             return
         }
 
-        // 第一步就把 OCR 原文结果先渲染出来，让用户立刻看到
-        let previewImage = OCRCompositor.composePreview(image: image, blocks: recognized)
-        latestSnapshot = OCRSnapshot(
+        // 图像标注一次生成：每个块上加彩色框 + 编号，下方列表靠颜色对照
+        let annotated = OCRCompositor.annotate(image: image, blocks: recognized)
+        var snapshot = OCRSnapshot(
             originalImage: image,
-            composedImage: previewImage,
+            composedImage: annotated,
             blocks: recognized,
             description: nil
         )
+        latestSnapshot = snapshot
 
         loadingMessage = "正在批量翻译 \(recognized.count) 条…"
         var blocks = recognized
@@ -294,7 +295,6 @@ final class HomeViewModel: ObservableObject {
         let sourceLang = appState.destination.language
         let destName = appState.destination.name
 
-        // 翻译 + 场景理解并发发起，互不阻塞
         async let translationTask = Self.runBatchTranslate(
             texts: texts,
             source: sourceLang,
@@ -311,15 +311,7 @@ final class HomeViewModel: ObservableObject {
         for (idx, tr) in translations.enumerated() where idx < blocks.count {
             blocks[idx].translatedText = tr
         }
-
-        loadingMessage = "正在合成译文…"
-        let composed = OCRCompositor.compose(image: image, blocks: blocks)
-        var snapshot = OCRSnapshot(
-            originalImage: image,
-            composedImage: composed,
-            blocks: blocks,
-            description: nil
-        )
+        snapshot.blocks = blocks
         latestSnapshot = snapshot
 
         let desc = await descriptionTask

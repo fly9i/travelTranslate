@@ -4,8 +4,8 @@ import UIKit
 struct OCRSnapshot: Identifiable {
     let id = UUID()
     let originalImage: UIImage
-    let composedImage: UIImage  // 原图 + 译文覆盖后的合成图
-    let blocks: [OCRBlock]
+    let composedImage: UIImage  // 原图 + 彩色框 + 编号徽章 的标注图
+    var blocks: [OCRBlock]
     var description: VisionDescribeResult?
     let createdAt: Date = Date()
 }
