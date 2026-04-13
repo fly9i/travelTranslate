@@ -16,20 +16,12 @@ struct CameraOCRView: View {
                     VisionDescriptionCard(result: desc)
                 }
 
-                DisclosureGroup("OCR 原文 / 译文对照（\(snapshot.blocks.count) 条）") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(snapshot.blocks) { block in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(block.originalText).font(.body)
-                                if let tr = block.translatedText {
-                                    Text(tr).font(.footnote).foregroundStyle(.secondary)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
+                Text("原文 / 译文对照（\(snapshot.blocks.count) 条）")
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(snapshot.blocks.enumerated()), id: \.element.id) { idx, block in
+                        OCRBlockRow(index: idx, block: block)
                     }
                 }
             }
@@ -37,6 +29,55 @@ struct CameraOCRView: View {
         }
         .navigationTitle("拍照翻译")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 单条 OCR 原文 / 译文对照行：左侧是带编号的彩色圆点徽章，颜色与图像上的框一致。
+struct OCRBlockRow: View {
+    let index: Int
+    let block: OCRBlock
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            NumberBadge(number: index + 1, color: OCRBlockPalette.color(at: index))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(block.originalText)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                if let tr = block.translatedText, !tr.isEmpty {
+                    Text(tr)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("翻译中…")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// 和图像上的徽章同色同形的编号小圆点。两位数自动胶囊化。
+struct NumberBadge: View {
+    let number: Int
+    let color: Color
+
+    var body: some View {
+        Text("\(number)")
+            .font(.caption.weight(.heavy))
+            .foregroundStyle(.white)
+            .frame(minWidth: 22, minHeight: 22)
+            .padding(.horizontal, number >= 10 ? 6 : 0)
+            .background(color)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(Color.white, lineWidth: 1.5)
+            )
     }
 }
 

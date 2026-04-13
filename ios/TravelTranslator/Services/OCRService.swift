@@ -1,4 +1,5 @@
 import CoreImage
+import SwiftUI
 import UIKit
 import Vision
 
@@ -59,85 +60,71 @@ enum OCRService {
     }
 }
 
-/// 把 OCR 文本块用译文"贴回"原图的合成器。
-///
-/// 方案（近似 Google 翻译相机）：
-/// 1. 对每个文字 bbox 做扩张，采样 bbox 外侧环形区域像素，计算背景主色。
-/// 2. 判断文字颜色（背景主色的反差色）。
-/// 3. 用背景色填充 bbox（等于"抠掉"原文）。
-/// 4. 用目标语言文本在同位置、同颜色、按 bbox 高度估算的字号渲染。
-///
-/// 纯色背景（菜单、路牌、说明牌）效果最好；复杂背景会有色块瑕疵。
-enum OCRCompositor {
-    /// 翻译完成前，先把 OCR 识别到的区域高亮出来，让用户马上看到进展。
-    static func composePreview(image: UIImage, blocks: [OCRBlock]) -> UIImage {
-        let size = image.size
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = image.scale
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { ctx in
-            image.draw(in: CGRect(origin: .zero, size: size))
-            let cg = ctx.cgContext
-            cg.setStrokeColor(UIColor.systemYellow.withAlphaComponent(0.9).cgColor)
-            cg.setFillColor(UIColor.systemYellow.withAlphaComponent(0.15).cgColor)
-            cg.setLineWidth(max(2, size.width * 0.003))
-            for block in blocks {
-                let rect = pixelRect(for: block.boundingBox, imageSize: size)
-                let padded = rect.insetBy(dx: -rect.width * 0.04, dy: -rect.height * 0.15)
-                let path = UIBezierPath(roundedRect: padded, cornerRadius: padded.height * 0.15)
-                cg.addPath(path.cgPath)
-                cg.drawPath(using: .fillStroke)
-            }
-        }
+/// 跨 UIKit / SwiftUI 的配色板：每个 OCR 文本块按下标取固定颜色，
+/// 这样图像上的框线、编号圆点 和 下方对照列表里的徽章能一一对应。
+enum OCRBlockPalette {
+    private static let uiColors: [UIColor] = [
+        .systemRed,
+        .systemOrange,
+        .systemYellow,
+        .systemGreen,
+        .systemTeal,
+        .systemBlue,
+        .systemIndigo,
+        .systemPurple,
+        .systemPink,
+        .systemBrown,
+    ]
+
+    static func uiColor(at index: Int) -> UIColor {
+        uiColors[((index % uiColors.count) + uiColors.count) % uiColors.count]
     }
 
-    /// 把原图和译文块合成为一张新图。
-    /// 背景色通过 bbox 外环采样得到（排除文字像素），文字带对比描边，
-    /// 仅对紧贴文字的矩形做半透明覆盖，尽量还原"直接替换原文"的观感。
-    static func compose(image: UIImage, blocks: [OCRBlock]) -> UIImage {
-        guard let cgInput = image.cgImage else { return image }
+    static func color(at index: Int) -> Color {
+        Color(uiColor(at: index))
+    }
+}
+
+/// 把 OCR 文本块"标注"到原图上：给每个块画一个对应颜色的矩形框，
+/// 并在框的左上角压一个实心圆点 + 编号，方便用户和下方译文对照。
+enum OCRCompositor {
+    static func annotate(image: UIImage, blocks: [OCRBlock]) -> UIImage {
         let size = image.size
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
         format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
 
+        let shortEdge = min(size.width, size.height)
+        let lineWidth = max(2, shortEdge * 0.005)
+
         return renderer.image { ctx in
             image.draw(in: CGRect(origin: .zero, size: size))
-
             let cg = ctx.cgContext
-            for block in blocks {
-                guard let translation = block.translatedText,
-                      !translation.isEmpty else { continue }
 
+            for (idx, block) in blocks.enumerated() {
+                let color = OCRBlockPalette.uiColor(at: idx)
                 let rect = pixelRect(for: block.boundingBox, imageSize: size)
-                let padded = rect.insetBy(dx: -rect.width * 0.03, dy: -rect.height * 0.12)
+                let padded = rect.insetBy(dx: -rect.width * 0.03, dy: -rect.height * 0.15)
 
-                let bgColor = sampleOuterRingColor(
-                    cgImage: cgInput,
-                    around: padded,
-                    imageSize: size
-                )
-                let textColor = contrastingColor(for: bgColor)
-                let strokeColor = contrastingColor(for: textColor)
-
-                // 用 bbox 外环估出的背景色做半透明覆盖，既盖住原文又不完全遮挡原图
+                // 1) 框线
                 cg.saveGState()
-                let clipPath = UIBezierPath(
+                cg.setStrokeColor(color.cgColor)
+                cg.setLineWidth(lineWidth)
+                let path = UIBezierPath(
                     roundedRect: padded,
-                    cornerRadius: padded.height * 0.15
+                    cornerRadius: padded.height * 0.12
                 )
-                cg.addPath(clipPath.cgPath)
-                cg.setFillColor(bgColor.withAlphaComponent(0.82).cgColor)
-                cg.fillPath()
+                cg.addPath(path.cgPath)
+                cg.strokePath()
                 cg.restoreGState()
 
-                drawText(
-                    translation,
-                    in: padded,
-                    color: textColor,
-                    strokeColor: strokeColor,
+                // 2) 左上角的圆点 + 编号
+                drawBadge(
+                    number: idx + 1,
+                    at: CGPoint(x: padded.minX, y: padded.minY),
+                    color: color,
+                    shortEdge: shortEdge,
                     context: cg
                 )
             }
@@ -153,108 +140,52 @@ enum OCRCompositor {
         return CGRect(x: x, y: y, width: w, height: h).integral
     }
 
-    /// 采样 bbox 外环（上/下/左/右四条）的平均颜色，排除文字像素本身，
-    /// 这样得到的背景色不会被原文字颜色"拉灰"。
-    private static func sampleOuterRingColor(
-        cgImage: CGImage,
-        around rect: CGRect,
-        imageSize: CGSize
-    ) -> UIColor {
-        let bounds = CGRect(origin: .zero, size: imageSize)
-        let ringW = max(rect.height * 0.4, 8)
-        let top = CGRect(x: rect.minX, y: rect.minY - ringW, width: rect.width, height: ringW)
-        let bottom = CGRect(x: rect.minX, y: rect.maxY, width: rect.width, height: ringW)
-        let left = CGRect(x: rect.minX - ringW, y: rect.minY, width: ringW, height: rect.height)
-        let right = CGRect(x: rect.maxX, y: rect.minY, width: ringW, height: rect.height)
-
-        let ci = CIImage(cgImage: cgImage)
-        let context = CIContext(options: [.workingColorSpace: NSNull()])
-
-        var rSum: CGFloat = 0, gSum: CGFloat = 0, bSum: CGFloat = 0
-        var weightSum: CGFloat = 0
-
-        for ring in [top, bottom, left, right] {
-            let clipped = ring.intersection(bounds)
-            guard clipped.width > 1, clipped.height > 1 else { continue }
-            let flipped = CGRect(
-                x: clipped.minX,
-                y: imageSize.height - clipped.maxY,
-                width: clipped.width,
-                height: clipped.height
-            )
-            guard let filter = CIFilter(name: "CIAreaAverage") else { continue }
-            filter.setValue(ci, forKey: kCIInputImageKey)
-            filter.setValue(CIVector(cgRect: flipped), forKey: "inputExtent")
-            guard let output = filter.outputImage else { continue }
-            var bitmap = [UInt8](repeating: 0, count: 4)
-            context.render(
-                output,
-                toBitmap: &bitmap,
-                rowBytes: 4,
-                bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                format: .RGBA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB()
-            )
-            let weight = clipped.width * clipped.height
-            rSum += CGFloat(bitmap[0]) / 255 * weight
-            gSum += CGFloat(bitmap[1]) / 255 * weight
-            bSum += CGFloat(bitmap[2]) / 255 * weight
-            weightSum += weight
-        }
-
-        guard weightSum > 0 else { return .white }
-        return UIColor(
-            red: rSum / weightSum,
-            green: gSum / weightSum,
-            blue: bSum / weightSum,
-            alpha: 1
-        )
-    }
-
-    /// 基于背景亮度选择前景文字颜色。
-    private static func contrastingColor(for bg: UIColor) -> UIColor {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        bg.getRed(&r, green: &g, blue: &b, alpha: &a)
-        // ITU-R BT.709 亮度
-        let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return luma > 0.6 ? UIColor(white: 0.08, alpha: 1) : UIColor(white: 0.97, alpha: 1)
-    }
-
-    /// 把译文绘制进 rect：按 bbox 高度估字号，自动缩放 + 垂直居中。
-    /// 通过负 strokeWidth 同时填充和描边，让文字在任意底图上都清晰可读。
-    private static func drawText(
-        _ text: String,
-        in rect: CGRect,
+    /// 画一个带编号的实心徽章。圆心压在 (cx, cy)，一半在框内一半在框外。
+    /// 两位数自动切换到胶囊形避免文字溢出。
+    private static func drawBadge(
+        number: Int,
+        at center: CGPoint,
         color: UIColor,
-        strokeColor: UIColor,
-        context: CGContext
+        shortEdge: CGFloat,
+        context cg: CGContext
     ) {
-        var fontSize = rect.height * 0.75
-        var attrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: color,
-            .strokeColor: strokeColor,
-            .strokeWidth: -3.0,
-            .font: UIFont.systemFont(ofSize: fontSize, weight: .semibold),
+        let radius = max(14, shortEdge * 0.022)
+        let label = "\(number)" as NSString
+        let fontSize = radius * 1.15
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize, weight: .heavy),
+            .foregroundColor: UIColor.white,
         ]
+        let textSize = label.size(withAttributes: attrs)
 
-        // 如果太宽就按比例缩
-        var textSize = (text as NSString).size(withAttributes: attrs)
-        if textSize.width > rect.width && textSize.width > 0 {
-            let ratio = rect.width / textSize.width
-            fontSize = max(8, fontSize * ratio)
-            attrs[.font] = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
-            textSize = (text as NSString).size(withAttributes: attrs)
-        }
-
-        let drawRect = CGRect(
-            x: rect.minX + max(0, (rect.width - textSize.width) / 2),
-            y: rect.minY + max(0, (rect.height - textSize.height) / 2),
-            width: min(textSize.width, rect.width),
-            height: textSize.height
+        // 两位以上数字用胶囊形
+        let badgeWidth = max(radius * 2, textSize.width + radius * 0.9)
+        let badgeHeight = radius * 2
+        let badgeRect = CGRect(
+            x: center.x - badgeWidth / 2,
+            y: center.y - badgeHeight / 2,
+            width: badgeWidth,
+            height: badgeHeight
         )
 
-        UIGraphicsPushContext(context)
-        (text as NSString).draw(in: drawRect, withAttributes: attrs)
+        cg.saveGState()
+        cg.setFillColor(color.cgColor)
+        cg.setStrokeColor(UIColor.white.cgColor)
+        cg.setLineWidth(max(1.5, shortEdge * 0.0025))
+        let badgePath = UIBezierPath(
+            roundedRect: badgeRect,
+            cornerRadius: badgeHeight / 2
+        )
+        cg.addPath(badgePath.cgPath)
+        cg.drawPath(using: .fillStroke)
+        cg.restoreGState()
+
+        UIGraphicsPushContext(cg)
+        let textOrigin = CGPoint(
+            x: badgeRect.midX - textSize.width / 2,
+            y: badgeRect.midY - textSize.height / 2
+        )
+        label.draw(at: textOrigin, withAttributes: attrs)
         UIGraphicsPopContext()
     }
 }
