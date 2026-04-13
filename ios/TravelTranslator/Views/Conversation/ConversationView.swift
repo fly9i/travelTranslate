@@ -36,18 +36,29 @@ struct ConversationView: View {
             VStack(spacing: 8) {
                 HStack {
                     TextField(
-                        viewModel.speaker == "user" ? "我说中文…" : "对方说\(appState.destination.name)语…",
+                        viewModel.speaker == "user"
+                            ? "我说\(appState.userLocale.flag)…"
+                            : "对方说\(appState.destination.flag)…",
                         text: $viewModel.input
                     )
                     .textFieldStyle(.roundedBorder)
                     .disabled(recognizer.isRecording)
 
                     Button("发送") {
-                        Task { await viewModel.send(destination: appState.destination) }
+                        Task {
+                            await viewModel.send(
+                                destination: appState.destination,
+                                userLocale: appState.userLocale,
+                                polish: appState.culturalPolish
+                            )
+                        }
                     }
                     .disabled(viewModel.input.isEmpty || viewModel.loading)
                     .buttonStyle(.borderedProminent)
                 }
+
+                Toggle("文化润色", isOn: $appState.culturalPolish)
+                    .font(.footnote)
 
                 // 按住说话按钮
                 holdToTalkButton
@@ -66,12 +77,12 @@ struct ConversationView: View {
             }
             .padding()
         }
-        .navigationTitle("实时对话 🇨🇳 ↔ \(appState.destination.flag)")
+        .navigationTitle("对话 \(appState.userLocale.flag) ↔ \(appState.destination.flag)")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.start(
                 destination: appState.destination.name,
-                source: "zh",
+                source: appState.userLocale.language,
                 target: appState.destination.language
             )
             _ = await recognizer.requestAuthorization()
@@ -138,8 +149,10 @@ struct ConversationView: View {
     }
 
     private func startRecording() {
-        // user 说话 → 中文识别；counterpart 说话 → 目标语言识别
-        let lang = viewModel.speaker == "user" ? "zh-CN" : appState.destination.voiceLanguage
+        // user 说话 → 用户母语识别；counterpart 说话 → 目标语言识别
+        let lang = viewModel.speaker == "user"
+            ? appState.userLocale.voiceLanguage
+            : appState.destination.voiceLanguage
         do {
             try recognizer.start(languageCode: lang)
         } catch {
@@ -156,7 +169,13 @@ struct ConversationView: View {
         let text = recognizer.stop()
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         viewModel.input = text
-        Task { await viewModel.send(destination: appState.destination) }
+        Task {
+            await viewModel.send(
+                destination: appState.destination,
+                userLocale: appState.userLocale,
+                polish: appState.culturalPolish
+            )
+        }
     }
 }
 
@@ -188,7 +207,7 @@ final class ConversationViewModel: ObservableObject {
         speaker = (speaker == "user") ? "counterpart" : "user"
     }
 
-    func send(destination: Destination) async {
+    func send(destination: Destination, userLocale: UserLocale, polish: Bool) async {
         guard let cid = conversationId, !input.isEmpty else { return }
         loading = true
         error = nil
@@ -200,9 +219,10 @@ final class ConversationViewModel: ObservableObject {
             )
             messages.append(msg)
             input = ""
-            // 自动朗读译文：user 说话用目标语言念、counterpart 说话用中文念
-            let voice = speaker == "user" ? destination.voiceLanguage : "zh-CN"
+            // 自动朗读译文：user 说话用目标语言念、counterpart 说话用用户母语念
+            let voice = speaker == "user" ? destination.voiceLanguage : userLocale.voiceLanguage
             SpeechService.shared.speak(msg.translatedText, languageCode: voice)
+            _ = polish // 对话接口的 polish 走 ConversationService，本版先保留开关，待后端对话接口升级
         } catch {
             self.error = error.localizedDescription
         }

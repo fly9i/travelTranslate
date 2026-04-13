@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		04819CB7FC0DC688B38182E3 /* PhraseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37DEDAC5D4949CCB94694C6 /* PhraseService.swift */; };
+		0B28779262B0D072558FA8CB /* UserLocale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1537385DBBBC1CA36D310479 /* UserLocale.swift */; };
 		0B5CC45FE67F53F56FF17E3E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD5E4462D9B234E1CA1CC5AD /* HomeView.swift */; };
 		0EEBBC0B68A4520E511FE79C /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62CBCD3DA55B0297944C4A6 /* ConversationView.swift */; };
 		161F06A848FE7866843E3E12 /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77E5A7458B2AA0FC7B30CCF /* TranslationService.swift */; };
@@ -23,6 +24,7 @@
 		5F1F7075379E6BF8CFDF6915 /* SceneDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0EDDF20741ABAAE8CCDAD8 /* SceneDetailView.swift */; };
 		67583D6D2F73E45AAD478339 /* SceneListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54DD22CACFC009B4C7132226 /* SceneListView.swift */; };
 		6ED44ACA17A5EFB0ADC011FB /* Destination.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF7C378CEFF9BC6353AB9B9 /* Destination.swift */; };
+		74A825CB3AFCFD8BFCB63BAE /* CameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD2274BAE7C82FD6A909C3B /* CameraPicker.swift */; };
 		9554EB4C08337C6EA7AE00C6 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23FE7A99ED698CE392C9C05 /* LocationService.swift */; };
 		AD77574E3E0704ED7D7F36EE /* FullScreenDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAF5B9668AD0E5F98FFBBFB2 /* FullScreenDisplayView.swift */; };
 		ADFE5884CA59920F97DE7CA3 /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E0DD20C83C1CD2CA521DDA1 /* SpeechRecognitionService.swift */; };
@@ -30,8 +32,10 @@
 		B2EC5309C57A57C2DB2E5D9D /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56399FE9474B0CDFA8B7312 /* FavoritesView.swift */; };
 		C510120A6D2E1BBE0C7C5FC4 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25ACBF415582FA53E87EF06 /* RootView.swift */; };
 		C6E0AF9CE9A58509E15F1DCA /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB49D8079D7E1A198423374C /* SpeechService.swift */; };
+		C9CD1C0BF867E0A361C935C9 /* OCRResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC56D9A840D08C7AD1504C84 /* OCRResult.swift */; };
 		CF88595F22B6A085247970F7 /* PhraseCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60E12DFB523015F5B7025F6C /* PhraseCardView.swift */; };
 		E5309FDABEA6889C48EB90A0 /* Phrase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29322E3CC9B7B9B59BFA7049 /* Phrase.swift */; };
+		EB475E3F6BC5B11D5C53D3FB /* VisionDescribeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC82FCCD666A209BCB1884A4 /* VisionDescribeService.swift */; };
 		F6A4E738C3B8EDF36A2F19F9 /* CameraOCRView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D0E588CC6C8C7416AD17D6 /* CameraOCRView.swift */; };
 		F8AEC5E64F040B1A442A68F8 /* TravelTranslatorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A456C1AD78486AD3AC175C4C /* TravelTranslatorApp.swift */; };
 /* End PBXBuildFile section */
@@ -40,8 +44,10 @@
 		02108FD40084B31195536C8B /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		08900615043925B61F62090F /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
 		1051E82E08874600753F2B4D /* TravelTranslator.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TravelTranslator.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1537385DBBBC1CA36D310479 /* UserLocale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLocale.swift; sourceTree = "<group>"; };
 		29322E3CC9B7B9B59BFA7049 /* Phrase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phrase.swift; sourceTree = "<group>"; };
 		3E0DD20C83C1CD2CA521DDA1 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
+		4BD2274BAE7C82FD6A909C3B /* CameraPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
 		51A188F34C7F85A03AFB335E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		52D0E588CC6C8C7416AD17D6 /* CameraOCRView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraOCRView.swift; sourceTree = "<group>"; };
 		54DD22CACFC009B4C7132226 /* SceneListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneListView.swift; sourceTree = "<group>"; };
@@ -63,6 +69,8 @@
 		D23FE7A99ED698CE392C9C05 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		D56399FE9474B0CDFA8B7312 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		DB8700B5FEE9F45EC3C7BCAC /* SceneEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneEntry.swift; sourceTree = "<group>"; };
+		DC56D9A840D08C7AD1504C84 /* OCRResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRResult.swift; sourceTree = "<group>"; };
+		DC82FCCD666A209BCB1884A4 /* VisionDescribeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionDescribeService.swift; sourceTree = "<group>"; };
 		E62CBCD3DA55B0297944C4A6 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
 		F37DEDAC5D4949CCB94694C6 /* PhraseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseService.swift; sourceTree = "<group>"; };
 		FD5E4462D9B234E1CA1CC5AD /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -86,8 +94,10 @@
 			children = (
 				9D500FFEBD688A13E1993536 /* Conversation.swift */,
 				ABF7C378CEFF9BC6353AB9B9 /* Destination.swift */,
+				DC56D9A840D08C7AD1504C84 /* OCRResult.swift */,
 				29322E3CC9B7B9B59BFA7049 /* Phrase.swift */,
 				DB8700B5FEE9F45EC3C7BCAC /* SceneEntry.swift */,
+				1537385DBBBC1CA36D310479 /* UserLocale.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -104,6 +114,7 @@
 				3E0DD20C83C1CD2CA521DDA1 /* SpeechRecognitionService.swift */,
 				BB49D8079D7E1A198423374C /* SpeechService.swift */,
 				C77E5A7458B2AA0FC7B30CCF /* TranslationService.swift */,
+				DC82FCCD666A209BCB1884A4 /* VisionDescribeService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -186,6 +197,7 @@
 			isa = PBXGroup;
 			children = (
 				52D0E588CC6C8C7416AD17D6 /* CameraOCRView.swift */,
+				4BD2274BAE7C82FD6A909C3B /* CameraPicker.swift */,
 			);
 			path = Camera;
 			sourceTree = "<group>";
@@ -279,6 +291,7 @@
 				B28917E001B8E1E5EAA15328 /* APIConfig.swift in Sources */,
 				3936A933F2A99ED843594700 /* AppState.swift in Sources */,
 				F6A4E738C3B8EDF36A2F19F9 /* CameraOCRView.swift in Sources */,
+				74A825CB3AFCFD8BFCB63BAE /* CameraPicker.swift in Sources */,
 				3D272A58B3CFEC901FF597EE /* Conversation.swift in Sources */,
 				2B0846DACD6CE6233317B2D7 /* ConversationService.swift in Sources */,
 				0EEBBC0B68A4520E511FE79C /* ConversationView.swift in Sources */,
@@ -289,6 +302,7 @@
 				0B5CC45FE67F53F56FF17E3E /* HomeView.swift in Sources */,
 				9554EB4C08337C6EA7AE00C6 /* LocationService.swift in Sources */,
 				3C482479A82A5599FC4CCC7C /* MessageBubbleView.swift in Sources */,
+				C9CD1C0BF867E0A361C935C9 /* OCRResult.swift in Sources */,
 				353F65D788F89547E53DAE43 /* OCRService.swift in Sources */,
 				E5309FDABEA6889C48EB90A0 /* Phrase.swift in Sources */,
 				CF88595F22B6A085247970F7 /* PhraseCardView.swift in Sources */,
@@ -302,6 +316,8 @@
 				C6E0AF9CE9A58509E15F1DCA /* SpeechService.swift in Sources */,
 				161F06A848FE7866843E3E12 /* TranslationService.swift in Sources */,
 				F8AEC5E64F040B1A442A68F8 /* TravelTranslatorApp.swift in Sources */,
+				0B28779262B0D072558FA8CB /* UserLocale.swift in Sources */,
+				EB475E3F6BC5B11D5C53D3FB /* VisionDescribeService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
