@@ -70,7 +70,7 @@ class VisionTranslateService:
             destination,
         )
         for b in blocks:
-            logger.debug("  ocr[%d]: %s", b.index, b.text)
+            logger.info("  ocr[%d]: %s", b.index, b.text)
 
         yield self._sse("status", {"message": "正在读取图像…"})
 
