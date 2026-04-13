@@ -14,10 +14,10 @@ struct PendingBatchRequest: Identifiable, Equatable {
     let targetLang: String
 }
 
-/// 苹果本地翻译可用性判断：Translation framework 需要 iOS 17.4+。
+/// 苹果本地翻译可用性判断：Translation framework 需要 iOS 18.0+。
 enum AppleTranslator {
     static var isAvailable: Bool {
-        if #available(iOS 17.4, *) {
+        if #available(iOS 18.0, *) {
             return true
         }
         return false
@@ -30,7 +30,7 @@ enum AppleTranslator {
 /// 结果通过 `onComplete(id, result)` 回调给 ViewModel。
 ///
 /// 结果为 nil 表示本地翻译不可用或失败，调用方应回退到后端。
-@available(iOS 17.4, *)
+@available(iOS 18.0, *)
 struct AppleBatchTranslateHost: View {
     let request: PendingBatchRequest?
     let onComplete: (UUID, [String]?) -> Void

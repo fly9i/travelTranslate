@@ -68,7 +68,7 @@ struct HomeView: View {
             await appState.bootstrapFromLocation()
         }
         .background {
-            if #available(iOS 17.4, *) {
+            if #available(iOS 18.0, *) {
                 AppleBatchTranslateHost(
                     request: viewModel.pendingBatch,
                     onComplete: { id, result in
@@ -318,7 +318,7 @@ final class HomeViewModel: ObservableObject {
             destination: destName
         )
 
-        // 先试本地翻译（iOS 17.4+），失败/不可用再回退到后端批量接口
+        // 先试本地翻译（iOS 18.0+），失败/不可用再回退到后端批量接口
         let translations = await translateBatch(
             texts: texts,
             sourceLang: sourceLang,
