@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
 
+    # 批量翻译引擎（OCR 贴图/图片翻译场景）
+    # inherit = 复用 translation_engine；google = Google Cloud Translation v3
+    batch_translation_engine: str = Field(
+        default="inherit", description="inherit | google | anthropic | openai | mock"
+    )
+    google_translate_api_key: str = ""
+    google_translate_base_url: str = "https://translation.googleapis.com"
+
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
 
