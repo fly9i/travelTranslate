@@ -4,20 +4,31 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = HomeViewModel()
+    @State private var showingDestinationPicker = false
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // 目的地头部
-                HStack {
-                    Text("\(appState.destination.flag) \(appState.destination.name)")
-                        .font(.title2)
-                        .bold()
-                    Spacer()
-                    Button("切换目的地") { appState.switchDestination() }
+                // 目的地头部：点击弹选择器
+                Button {
+                    showingDestinationPicker = true
+                } label: {
+                    HStack {
+                        Text("\(appState.destination.flag) \(appState.destination.name)")
+                            .font(.title2)
+                            .bold()
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("切换").font(.footnote).foregroundStyle(.tint)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
 
                 // 场景网格
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -65,6 +76,12 @@ struct HomeView: View {
             .padding()
         }
         .navigationTitle("TravelTranslator")
+        .sheet(isPresented: $showingDestinationPicker) {
+            DestinationPickerView(selection: $appState.destination)
+        }
+        .task {
+            await appState.bootstrapFromLocation()
+        }
     }
 
     private func sceneCard(_ scene: SceneEntry) -> some View {

@@ -57,5 +57,7 @@ targets:
         NSMicrophoneUsageDescription: "用于语音输入以进行翻译。"
         NSSpeechRecognitionUsageDescription: "用于语音识别以生成翻译文本。"
         NSCameraUsageDescription: "用于拍照翻译菜单或路牌。"
+        NSPhotoLibraryUsageDescription: "用于从相册选择照片进行翻译。"
+        NSLocationWhenInUseUsageDescription: "用于根据当前位置推荐默认目的地。"
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
