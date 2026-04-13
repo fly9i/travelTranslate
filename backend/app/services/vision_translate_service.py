@@ -264,11 +264,11 @@ class VisionTranslateService:
 
         accumulated = ""
         chunk_count = 0
-        stream = await client.chat.completions.create(
-            model=self.settings.openai_model,
-            max_tokens=4096,
-            stream=True,
-            messages=[
+        kwargs: dict = {
+            "model": self.settings.openai_model,
+            "max_tokens": 4096,
+            "stream": True,
+            "messages": [
                 {
                     "role": "user",
                     "content": [
@@ -277,7 +277,12 @@ class VisionTranslateService:
                     ],
                 }
             ],
-        )
+        }
+        extra = self.settings.openai_extra_body_dict
+        if extra:
+            kwargs["extra_body"] = extra
+            logger.info("openai vision extra_body=%s", extra)
+        stream = await client.chat.completions.create(**kwargs)
         yield self._sse("status", {"message": "模型思考中…"})
         await asyncio.sleep(0)
         async for chunk in stream:

@@ -148,12 +148,16 @@ class VisionService:
             base_url=self.settings.openai_base_url,
         )
         prompt = self._build_prompt(joined, source_language, user_language, destination, hint)
-        completion = await client.chat.completions.create(
-            model=self.settings.openai_model,
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-        )
+        kwargs: dict = {
+            "model": self.settings.openai_model,
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        }
+        extra = self.settings.openai_extra_body_dict
+        if extra:
+            kwargs["extra_body"] = extra
+        completion = await client.chat.completions.create(**kwargs)
         raw = (completion.choices[0].message.content or "").strip()
         return self._parse(raw, engine="openai")
 

@@ -34,6 +34,23 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
+    # 额外传给 chat.completions.create 的 extra_body（JSON 字符串），
+    # 比如 {"enable_thinking": true} 开启深度思考。留空则不传。
+    openai_extra_body: str = ""
+
+    @property
+    def openai_extra_body_dict(self) -> dict:
+        """把 openai_extra_body 解析成 dict；失败或为空返回空 dict。"""
+        import json as _json
+
+        raw = (self.openai_extra_body or "").strip()
+        if not raw:
+            return {}
+        try:
+            data = _json.loads(raw)
+            return data if isinstance(data, dict) else {}
+        except _json.JSONDecodeError:
+            return {}
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:8080"

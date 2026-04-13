@@ -197,12 +197,17 @@ class TextTranslateStreamService:
 
         accumulated = ""
         chunk_count = 0
-        stream = await client.chat.completions.create(
-            model=self.settings.openai_model,
-            max_tokens=512 if polish else 256,
-            stream=True,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        kwargs: dict = {
+            "model": self.settings.openai_model,
+            "max_tokens": 512 if polish else 256,
+            "stream": True,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        extra = self.settings.openai_extra_body_dict
+        if extra:
+            kwargs["extra_body"] = extra
+            logger.info("openai text extra_body=%s", extra)
+        stream = await client.chat.completions.create(**kwargs)
         yield self._sse("status", {"message": "模型思考中…"})
         async for chunk in stream:
             if not chunk.choices:

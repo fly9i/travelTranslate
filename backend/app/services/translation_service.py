@@ -192,12 +192,16 @@ class TranslationService:
         prompt = self._build_batch_prompt(
             source_texts, source_language, target_language, context
         )
-        completion = await client.chat.completions.create(
-            model=self.settings.openai_model,
-            max_tokens=max(512, 64 * len(source_texts)),
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-        )
+        kwargs: dict = {
+            "model": self.settings.openai_model,
+            "max_tokens": max(512, 64 * len(source_texts)),
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        }
+        extra = self.settings.openai_extra_body_dict
+        if extra:
+            kwargs["extra_body"] = extra
+        completion = await client.chat.completions.create(**kwargs)
         raw = (completion.choices[0].message.content or "").strip()
         return self._parse_batch_output(raw, len(source_texts), source_texts)
 
@@ -377,12 +381,16 @@ class TranslationService:
             base_url=self.settings.openai_base_url,
         )
         prompt = self._build_prompt(source_text, source_language, target_language, context, polish)
-        completion = await client.chat.completions.create(
-            model=self.settings.openai_model,
-            max_tokens=512 if polish else 256,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"} if polish else None,
-        )
+        kwargs: dict = {
+            "model": self.settings.openai_model,
+            "max_tokens": 512 if polish else 256,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"} if polish else None,
+        }
+        extra = self.settings.openai_extra_body_dict
+        if extra:
+            kwargs["extra_body"] = extra
+        completion = await client.chat.completions.create(**kwargs)
         raw = (completion.choices[0].message.content or "").strip()
         if not raw:
             raise RuntimeError("OpenAI 兼容接口返回空译文")
