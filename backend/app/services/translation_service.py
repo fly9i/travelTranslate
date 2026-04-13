@@ -109,6 +109,151 @@ class TranslationService:
             )
         return result
 
+    async def translate_batch(
+        self,
+        source_texts: list[str],
+        source_language: str,
+        target_language: str,
+        context: str | None = None,
+    ) -> tuple[list[str], str]:
+        """批量翻译：一次 LLM 调用返回多条译文。
+
+        返回 (译文列表, 引擎名)。译文顺序与输入顺序一致；若引擎失败则逐条兜底。
+        """
+        if not source_texts:
+            return [], "mock"
+
+        engine = self.settings.translation_engine.lower()
+        try:
+            if engine == "anthropic" and self.settings.anthropic_api_key:
+                results = await self._batch_anthropic(
+                    source_texts, source_language, target_language, context
+                )
+                return results, "anthropic"
+            if engine == "openai" and self.settings.openai_api_key:
+                results = await self._batch_openai(
+                    source_texts, source_language, target_language, context
+                )
+                return results, "openai"
+        except Exception as exc:
+            logger.exception("batch translation failed, fallback per item: %s", exc)
+
+        results = [
+            self._translate_with_fallback(t, source_language, target_language).translated_text
+            for t in source_texts
+        ]
+        return results, "mock"
+
+    async def _batch_anthropic(
+        self,
+        source_texts: list[str],
+        source_language: str,
+        target_language: str,
+        context: str | None,
+    ) -> list[str]:
+        """调用 Claude 批量翻译。"""
+        try:
+            from anthropic import AsyncAnthropic
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("anthropic SDK 未安装") from exc
+
+        client = AsyncAnthropic(api_key=self.settings.anthropic_api_key)
+        prompt = self._build_batch_prompt(
+            source_texts, source_language, target_language, context
+        )
+        message = await client.messages.create(
+            model=self.settings.anthropic_model,
+            max_tokens=max(512, 64 * len(source_texts)),
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = "".join(
+            block.text for block in message.content if getattr(block, "type", "") == "text"
+        ).strip()
+        return self._parse_batch_output(raw, len(source_texts), source_texts)
+
+    async def _batch_openai(
+        self,
+        source_texts: list[str],
+        source_language: str,
+        target_language: str,
+        context: str | None,
+    ) -> list[str]:
+        """调用 OpenAI 兼容接口批量翻译。"""
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("openai SDK 未安装") from exc
+
+        client = AsyncOpenAI(
+            api_key=self.settings.openai_api_key,
+            base_url=self.settings.openai_base_url,
+        )
+        prompt = self._build_batch_prompt(
+            source_texts, source_language, target_language, context
+        )
+        completion = await client.chat.completions.create(
+            model=self.settings.openai_model,
+            max_tokens=max(512, 64 * len(source_texts)),
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        return self._parse_batch_output(raw, len(source_texts), source_texts)
+
+    @staticmethod
+    def _build_batch_prompt(
+        source_texts: list[str],
+        source_language: str,
+        target_language: str,
+        context: str | None,
+    ) -> str:
+        """构造批量翻译 prompt。要求模型输出严格 JSON 对象。"""
+        scene_hint = f"场景：{context}。" if context else ""
+        numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(source_texts))
+        return (
+            f"你是一名旅行翻译助手。{scene_hint}"
+            f"请把下列编号文本从 {source_language} 翻译成 {target_language}，"
+            "要求口语化、简洁、贴近实际语境。\n"
+            "严格按 JSON 输出，不要任何额外文字或 Markdown：\n"
+            '{"translations": [{"id": 1, "text": "..."}, ...]}\n'
+            "必须保持 id 与输入编号一一对应，数量一致。\n\n"
+            f"原文：\n{numbered}"
+        )
+
+    @staticmethod
+    def _parse_batch_output(
+        raw: str, expected: int, source_texts: list[str]
+    ) -> list[str]:
+        """解析批量翻译的 JSON 输出，缺失位置用原文兜底。"""
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            stripped = stripped.strip("`")
+            if stripped.lower().startswith("json"):
+                stripped = stripped[4:].strip()
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError:
+            logger.warning("批量翻译 JSON 解析失败，回退原文")
+            return list(source_texts)
+
+        items = data.get("translations") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            return list(source_texts)
+
+        result = list(source_texts)
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            idx_raw = item.get("id")
+            text = item.get("text")
+            try:
+                idx = int(idx_raw) - 1
+            except (TypeError, ValueError):
+                continue
+            if 0 <= idx < expected and isinstance(text, str) and text.strip():
+                result[idx] = text.strip()
+        return result
+
     async def _get_cached(
         self, source_text: str, source_language: str, target_language: str
     ) -> TranslationCache | None:

@@ -3,6 +3,31 @@
 from pydantic import BaseModel, Field
 
 
+class TranslateBatchRequest(BaseModel):
+    """批量翻译请求：一次性把多条文本送入 LLM，显著降低耗时与 token。"""
+
+    source_texts: list[str] = Field(
+        ..., min_length=1, max_length=50, description="待翻译文本列表"
+    )
+    source_language: str = Field(default="auto", description="源语言代码")
+    target_language: str = Field(..., description="目标语言代码")
+    context: str | None = Field(default=None, description="场景上下文")
+
+
+class TranslateBatchItem(BaseModel):
+    """批量翻译结果项。"""
+
+    source_text: str
+    translated_text: str
+
+
+class TranslateBatchResponse(BaseModel):
+    """批量翻译响应。"""
+
+    items: list[TranslateBatchItem]
+    engine: str = "mock"
+
+
 class TranslateRequest(BaseModel):
     """翻译请求。"""
 

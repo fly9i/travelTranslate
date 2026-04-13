@@ -278,35 +278,38 @@ final class HomeViewModel: ObservableObject {
             return
         }
 
-        loadingMessage = "正在翻译 \(recognized.count) 条…"
+        // 第一步就把 OCR 原文结果先渲染出来，让用户立刻看到
+        let previewImage = OCRCompositor.composePreview(image: image, blocks: recognized)
+        latestSnapshot = OCRSnapshot(
+            originalImage: image,
+            composedImage: previewImage,
+            blocks: recognized,
+            description: nil
+        )
+
+        loadingMessage = "正在批量翻译 \(recognized.count) 条…"
         var blocks = recognized
-        await withTaskGroup(of: (UUID, String?).self) { group in
-            for block in recognized {
-                group.addTask {
-                    do {
-                        let result = try await TranslationService.shared.translate(
-                            text: block.originalText,
-                            from: "auto",
-                            to: appState.userLocale.language,
-                            context: nil,
-                            polish: false
-                        )
-                        return (block.id, result.translatedText)
-                    } catch {
-                        return (block.id, nil)
-                    }
-                }
-            }
-            for await (id, tr) in group {
-                if let tr, let idx = blocks.firstIndex(where: { $0.id == id }) {
-                    blocks[idx].translatedText = tr
-                }
-            }
+        let texts = recognized.map { $0.originalText }
+        let targetLang = appState.userLocale.language
+        let sourceLang = appState.destination.language
+        let destName = appState.destination.name
+
+        // 同时发起翻译 + 场景理解（两者互不依赖），节省等待
+        async let translationTask = Self.runBatchTranslate(texts: texts, target: targetLang)
+        async let descriptionTask = Self.runVisionDescribe(
+            texts: texts,
+            source: sourceLang,
+            userLang: targetLang,
+            destination: destName
+        )
+
+        let translations = await translationTask
+        for (idx, tr) in translations.enumerated() where idx < blocks.count {
+            blocks[idx].translatedText = tr
         }
 
         loadingMessage = "正在合成译文…"
         let composed = OCRCompositor.compose(image: image, blocks: blocks)
-
         var snapshot = OCRSnapshot(
             originalImage: image,
             composedImage: composed,
@@ -315,18 +318,41 @@ final class HomeViewModel: ObservableObject {
         )
         latestSnapshot = snapshot
 
-        loadingMessage = "正在生成场景说明…"
-        do {
-            let desc = try await VisionDescribeService.shared.describe(
-                ocrTexts: blocks.map { $0.originalText },
-                sourceLanguage: appState.destination.language,
-                userLanguage: appState.userLocale.language,
-                destination: appState.destination.name
-            )
+        let desc = await descriptionTask
+        if let desc {
             snapshot.description = desc
             latestSnapshot = snapshot
+        }
+    }
+
+    private static func runBatchTranslate(texts: [String], target: String) async -> [String] {
+        do {
+            return try await TranslationService.shared.translateBatch(
+                texts: texts,
+                from: "auto",
+                to: target,
+                context: nil
+            )
         } catch {
-            // 场景理解失败不致命，保留已有 snapshot
+            return texts
+        }
+    }
+
+    private static func runVisionDescribe(
+        texts: [String],
+        source: String,
+        userLang: String,
+        destination: String
+    ) async -> VisionDescribeResult? {
+        do {
+            return try await VisionDescribeService.shared.describe(
+                ocrTexts: texts,
+                sourceLanguage: source,
+                userLanguage: userLang,
+                destination: destination
+            )
+        } catch {
+            return nil
         }
     }
 }

@@ -36,9 +36,63 @@ struct TranslateRequest: Encodable {
     }
 }
 
+/// 批量翻译请求。
+struct TranslateBatchRequest: Encodable {
+    let sourceTexts: [String]
+    let sourceLanguage: String
+    let targetLanguage: String
+    let context: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sourceTexts = "source_texts"
+        case sourceLanguage = "source_language"
+        case targetLanguage = "target_language"
+        case context
+    }
+}
+
+struct TranslateBatchItem: Codable {
+    let sourceText: String
+    let translatedText: String
+
+    enum CodingKeys: String, CodingKey {
+        case sourceText = "source_text"
+        case translatedText = "translated_text"
+    }
+}
+
+struct TranslateBatchResponse: Codable {
+    let items: [TranslateBatchItem]
+    let engine: String
+}
+
 /// 翻译服务：调后端 /api/v1/translate。
 final class TranslationService {
     static let shared = TranslationService()
+
+    func translateBatch(
+        texts: [String],
+        from source: String = "auto",
+        to target: String,
+        context: String? = nil
+    ) async throws -> [String] {
+        let body = TranslateBatchRequest(
+            sourceTexts: texts,
+            sourceLanguage: source,
+            targetLanguage: target,
+            context: context
+        )
+        let resp: TranslateBatchResponse = try await APIClient.shared.post(
+            "/api/v1/translate/batch",
+            body: body
+        )
+        // 保证顺序与输入一致
+        var map: [String: String] = [:]
+        for item in resp.items {
+            map[item.sourceText] = item.translatedText
+        }
+        return texts.map { map[$0] ?? $0 }
+    }
 
     func translate(
         text: String,

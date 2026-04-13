@@ -69,7 +69,32 @@ enum OCRService {
 ///
 /// 纯色背景（菜单、路牌、说明牌）效果最好；复杂背景会有色块瑕疵。
 enum OCRCompositor {
+    /// 翻译完成前，先把 OCR 识别到的区域高亮出来，让用户马上看到进展。
+    static func composePreview(image: UIImage, blocks: [OCRBlock]) -> UIImage {
+        let size = image.size
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            image.draw(in: CGRect(origin: .zero, size: size))
+            let cg = ctx.cgContext
+            cg.setStrokeColor(UIColor.systemYellow.withAlphaComponent(0.9).cgColor)
+            cg.setFillColor(UIColor.systemYellow.withAlphaComponent(0.15).cgColor)
+            cg.setLineWidth(max(2, size.width * 0.003))
+            for block in blocks {
+                let rect = pixelRect(for: block.boundingBox, imageSize: size)
+                let padded = rect.insetBy(dx: -rect.width * 0.04, dy: -rect.height * 0.15)
+                let path = UIBezierPath(roundedRect: padded, cornerRadius: padded.height * 0.15)
+                cg.addPath(path.cgPath)
+                cg.drawPath(using: .fillStroke)
+            }
+        }
+    }
+
     /// 把原图和译文块合成为一张新图。
+    /// 背景色通过 bbox 外环采样得到（排除文字像素），文字带对比描边，
+    /// 仅对紧贴文字的矩形做半透明覆盖，尽量还原"直接替换原文"的观感。
     static func compose(image: UIImage, blocks: [OCRBlock]) -> UIImage {
         guard let cgInput = image.cgImage else { return image }
         let size = image.size
@@ -79,7 +104,6 @@ enum OCRCompositor {
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
 
         return renderer.image { ctx in
-            // 1) 原图铺底
             image.draw(in: CGRect(origin: .zero, size: size))
 
             let cg = ctx.cgContext
@@ -88,22 +112,32 @@ enum OCRCompositor {
                       !translation.isEmpty else { continue }
 
                 let rect = pixelRect(for: block.boundingBox, imageSize: size)
-                let padded = rect.insetBy(dx: -rect.width * 0.05, dy: -rect.height * 0.2)
+                let padded = rect.insetBy(dx: -rect.width * 0.03, dy: -rect.height * 0.12)
 
-                let bgColor = sampleBackgroundColor(cgImage: cgInput, around: padded, imageSize: size)
+                let bgColor = sampleOuterRingColor(
+                    cgImage: cgInput,
+                    around: padded,
+                    imageSize: size
+                )
                 let textColor = contrastingColor(for: bgColor)
+                let strokeColor = contrastingColor(for: textColor)
 
-                // 2) 用背景色填充 bbox 区域（抠掉原文）
+                // 用 bbox 外环估出的背景色做半透明覆盖，既盖住原文又不完全遮挡原图
                 cg.saveGState()
-                cg.setFillColor(bgColor.cgColor)
-                cg.fill(padded)
+                let clipPath = UIBezierPath(
+                    roundedRect: padded,
+                    cornerRadius: padded.height * 0.15
+                )
+                cg.addPath(clipPath.cgPath)
+                cg.setFillColor(bgColor.withAlphaComponent(0.82).cgColor)
+                cg.fillPath()
                 cg.restoreGState()
 
-                // 3) 绘制译文
                 drawText(
                     translation,
                     in: padded,
                     color: textColor,
+                    strokeColor: strokeColor,
                     context: cg
                 )
             }
@@ -119,46 +153,60 @@ enum OCRCompositor {
         return CGRect(x: x, y: y, width: w, height: h).integral
     }
 
-    /// 采样 rect 周围环形区域的平均颜色，作为背景主色估计。
-    private static func sampleBackgroundColor(
+    /// 采样 bbox 外环（上/下/左/右四条）的平均颜色，排除文字像素本身，
+    /// 这样得到的背景色不会被原文字颜色"拉灰"。
+    private static func sampleOuterRingColor(
         cgImage: CGImage,
         around rect: CGRect,
         imageSize: CGSize
     ) -> UIColor {
-        let expanded = rect.insetBy(dx: -rect.width * 0.25, dy: -rect.height * 0.4)
-        let clipped = expanded.intersection(CGRect(origin: .zero, size: imageSize))
-        guard clipped.width > 1, clipped.height > 1 else {
-            return .white
-        }
+        let bounds = CGRect(origin: .zero, size: imageSize)
+        let ringW = max(rect.height * 0.4, 8)
+        let top = CGRect(x: rect.minX, y: rect.minY - ringW, width: rect.width, height: ringW)
+        let bottom = CGRect(x: rect.minX, y: rect.maxY, width: rect.width, height: ringW)
+        let left = CGRect(x: rect.minX - ringW, y: rect.minY, width: ringW, height: rect.height)
+        let right = CGRect(x: rect.maxX, y: rect.minY, width: ringW, height: rect.height)
 
         let ci = CIImage(cgImage: cgImage)
         let context = CIContext(options: [.workingColorSpace: NSNull()])
-        // CIImage 坐标是左下原点，转一下
-        let flipped = CGRect(
-            x: clipped.minX,
-            y: imageSize.height - clipped.maxY,
-            width: clipped.width,
-            height: clipped.height
-        )
 
-        guard let filter = CIFilter(name: "CIAreaAverage") else { return .white }
-        filter.setValue(ci, forKey: kCIInputImageKey)
-        filter.setValue(CIVector(cgRect: flipped), forKey: "inputExtent")
-        guard let output = filter.outputImage else { return .white }
+        var rSum: CGFloat = 0, gSum: CGFloat = 0, bSum: CGFloat = 0
+        var weightSum: CGFloat = 0
 
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        context.render(
-            output,
-            toBitmap: &bitmap,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: CGColorSpaceCreateDeviceRGB()
-        )
+        for ring in [top, bottom, left, right] {
+            let clipped = ring.intersection(bounds)
+            guard clipped.width > 1, clipped.height > 1 else { continue }
+            let flipped = CGRect(
+                x: clipped.minX,
+                y: imageSize.height - clipped.maxY,
+                width: clipped.width,
+                height: clipped.height
+            )
+            guard let filter = CIFilter(name: "CIAreaAverage") else { continue }
+            filter.setValue(ci, forKey: kCIInputImageKey)
+            filter.setValue(CIVector(cgRect: flipped), forKey: "inputExtent")
+            guard let output = filter.outputImage else { continue }
+            var bitmap = [UInt8](repeating: 0, count: 4)
+            context.render(
+                output,
+                toBitmap: &bitmap,
+                rowBytes: 4,
+                bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                format: .RGBA8,
+                colorSpace: CGColorSpaceCreateDeviceRGB()
+            )
+            let weight = clipped.width * clipped.height
+            rSum += CGFloat(bitmap[0]) / 255 * weight
+            gSum += CGFloat(bitmap[1]) / 255 * weight
+            bSum += CGFloat(bitmap[2]) / 255 * weight
+            weightSum += weight
+        }
+
+        guard weightSum > 0 else { return .white }
         return UIColor(
-            red: CGFloat(bitmap[0]) / 255,
-            green: CGFloat(bitmap[1]) / 255,
-            blue: CGFloat(bitmap[2]) / 255,
+            red: rSum / weightSum,
+            green: gSum / weightSum,
+            blue: bSum / weightSum,
             alpha: 1
         )
     }
@@ -173,15 +221,19 @@ enum OCRCompositor {
     }
 
     /// 把译文绘制进 rect：按 bbox 高度估字号，自动缩放 + 垂直居中。
+    /// 通过负 strokeWidth 同时填充和描边，让文字在任意底图上都清晰可读。
     private static func drawText(
         _ text: String,
         in rect: CGRect,
         color: UIColor,
+        strokeColor: UIColor,
         context: CGContext
     ) {
         var fontSize = rect.height * 0.75
         var attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: color,
+            .strokeColor: strokeColor,
+            .strokeWidth: -3.0,
             .font: UIFont.systemFont(ofSize: fontSize, weight: .semibold),
         ]
 
