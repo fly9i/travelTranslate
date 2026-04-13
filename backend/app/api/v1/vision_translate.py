@@ -52,6 +52,16 @@ async def vision_translate_stream(
         raise HTTPException(status_code=400, detail="图片为空")
 
     media_type = image.content_type or "image/jpeg"
+    logger.info(
+        "POST /vision/translate/stream image=%s size=%d blocks=%d "
+        "source=%s target=%s destination=%s",
+        image.filename,
+        len(image_bytes),
+        len(blocks),
+        source_language,
+        target_language,
+        destination,
+    )
 
     service = VisionTranslateService()
 

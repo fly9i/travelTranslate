@@ -29,13 +29,23 @@ class TextTranslateStreamService:
         context: str | None,
     ) -> AsyncIterator[bytes]:
         """产出 SSE 字节流。事件：status / delta / final / error。"""
+        logger.info(
+            "text translate stream start: source=%s target=%s polish=%s len=%d text=%r",
+            source_language,
+            target_language,
+            polish,
+            len(source_text),
+            source_text[:80],
+        )
         if not source_text.strip():
+            logger.warning("text translate stream: 原文为空")
             yield self._sse("error", {"message": "原文为空"})
             return
 
         yield self._sse("status", {"message": "连接模型…"})
 
         engine = self.settings.translation_engine.lower()
+        logger.info("text translate engine=%s", engine)
         try:
             if engine == "anthropic" and self.settings.anthropic_api_key:
                 async for chunk in self._stream_anthropic(
@@ -114,8 +124,15 @@ class TextTranslateStreamService:
         prompt = self._build_prompt(
             source_text, source_language, target_language, polish, context
         )
+        logger.info(
+            "anthropic text request: model=%s prompt_len=%d",
+            self.settings.anthropic_model,
+            len(prompt),
+        )
+        logger.debug("anthropic text prompt:\n%s", prompt)
 
         accumulated = ""
+        chunk_count = 0
         async with client.messages.stream(
             model=self.settings.anthropic_model,
             max_tokens=512 if polish else 256,
@@ -126,9 +143,19 @@ class TextTranslateStreamService:
                 if not text:
                     continue
                 accumulated += text
+                chunk_count += 1
                 yield self._sse("delta", {"text": text})
 
+        logger.info(
+            "anthropic text stream done: chunks=%d raw_len=%d",
+            chunk_count,
+            len(accumulated),
+        )
+        logger.debug("anthropic text raw:\n%s", accumulated)
         translated, note = self._parse(accumulated, polish)
+        logger.info(
+            "anthropic text final: translated=%r note=%r", translated[:120], note
+        )
         yield self._sse(
             "final",
             {
@@ -158,8 +185,16 @@ class TextTranslateStreamService:
         prompt = self._build_prompt(
             source_text, source_language, target_language, polish, context
         )
+        logger.info(
+            "openai text request: model=%s base_url=%s prompt_len=%d",
+            self.settings.openai_model,
+            self.settings.openai_base_url,
+            len(prompt),
+        )
+        logger.debug("openai text prompt:\n%s", prompt)
 
         accumulated = ""
+        chunk_count = 0
         stream = await client.chat.completions.create(
             model=self.settings.openai_model,
             max_tokens=512 if polish else 256,
@@ -175,9 +210,19 @@ class TextTranslateStreamService:
             if not text:
                 continue
             accumulated += text
+            chunk_count += 1
             yield self._sse("delta", {"text": text})
 
+        logger.info(
+            "openai text stream done: chunks=%d raw_len=%d",
+            chunk_count,
+            len(accumulated),
+        )
+        logger.debug("openai text raw:\n%s", accumulated)
         translated, note = self._parse(accumulated, polish)
+        logger.info(
+            "openai text final: translated=%r note=%r", translated[:120], note
+        )
         yield self._sse(
             "final",
             {

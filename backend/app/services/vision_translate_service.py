@@ -58,13 +58,30 @@ class VisionTranslateService:
         destination: str | None,
     ) -> AsyncIterator[bytes]:
         """主入口：产出 SSE 字节流。"""
+        logger.info(
+            "vision translate start: image=%d bytes type=%s blocks=%d "
+            "source=%s target=%s destination=%s",
+            len(image_bytes),
+            image_media_type,
+            len(blocks),
+            source_language,
+            target_language,
+            destination,
+        )
+        for b in blocks:
+            logger.debug("  ocr[%d]: %s", b.index, b.text)
+
         yield self._sse("status", {"message": "正在读取图像…"})
 
         if not blocks:
+            logger.warning("vision translate: 未提供 OCR 文字块")
             yield self._sse("error", {"message": "未提供 OCR 文字块"})
             return
 
         engine = self.settings.translation_engine.lower()
+        logger.info("vision translate engine=%s model=%s", engine,
+                    self.settings.anthropic_model if engine == "anthropic"
+                    else self.settings.openai_model)
         try:
             if engine == "anthropic" and self.settings.anthropic_api_key:
                 async for chunk in self._stream_anthropic(
@@ -147,10 +164,18 @@ class VisionTranslateService:
         client = AsyncAnthropic(api_key=self.settings.anthropic_api_key)
         prompt = self._build_prompt(blocks, source_language, target_language, destination)
         b64 = base64.standard_b64encode(image_bytes).decode("ascii")
+        logger.info(
+            "anthropic vision request: model=%s prompt_len=%d image_b64_len=%d",
+            self.settings.anthropic_model,
+            len(prompt),
+            len(b64),
+        )
+        logger.debug("anthropic prompt:\n%s", prompt)
 
         yield self._sse("status", {"message": "连接 Claude 视觉模型…"})
 
         accumulated = ""
+        chunk_count = 0
         async with client.messages.stream(
             model=self.settings.anthropic_model,
             max_tokens=4096,
@@ -176,10 +201,30 @@ class VisionTranslateService:
                 if not text:
                     continue
                 accumulated += text
+                chunk_count += 1
                 yield self._sse("delta", {"text": text})
 
+        logger.info(
+            "anthropic stream done: chunks=%d raw_len=%d", chunk_count, len(accumulated)
+        )
+        logger.debug("anthropic raw output:\n%s", accumulated)
         yield self._sse("status", {"message": "正在解析结果…"})
         result = self._parse(accumulated, engine="anthropic")
+        logger.info(
+            "vision translate parsed: scene=%s items=%d summary=%r",
+            result.scene_type,
+            len(result.items),
+            result.summary[:80],
+        )
+        for i, item in enumerate(result.items):
+            logger.info(
+                "  item[%d] indices=%s src=%r -> tgt=%r note=%r",
+                i,
+                item.ocr_indices,
+                item.source_text[:60],
+                item.translated_text[:60],
+                (item.note or "")[:60],
+            )
         yield self._sse("final", self._result_to_dict(result))
 
     async def _stream_openai(
@@ -203,10 +248,19 @@ class VisionTranslateService:
         prompt = self._build_prompt(blocks, source_language, target_language, destination)
         b64 = base64.standard_b64encode(image_bytes).decode("ascii")
         data_url = f"data:{image_media_type};base64,{b64}"
+        logger.info(
+            "openai vision request: model=%s base_url=%s prompt_len=%d image_b64_len=%d",
+            self.settings.openai_model,
+            self.settings.openai_base_url,
+            len(prompt),
+            len(b64),
+        )
+        logger.debug("openai prompt:\n%s", prompt)
 
         yield self._sse("status", {"message": "连接视觉模型…"})
 
         accumulated = ""
+        chunk_count = 0
         stream = await client.chat.completions.create(
             model=self.settings.openai_model,
             max_tokens=4096,
@@ -230,10 +284,30 @@ class VisionTranslateService:
             if not text:
                 continue
             accumulated += text
+            chunk_count += 1
             yield self._sse("delta", {"text": text})
 
+        logger.info(
+            "openai stream done: chunks=%d raw_len=%d", chunk_count, len(accumulated)
+        )
+        logger.debug("openai raw output:\n%s", accumulated)
         yield self._sse("status", {"message": "正在解析结果…"})
         result = self._parse(accumulated, engine="openai")
+        logger.info(
+            "vision translate parsed: scene=%s items=%d summary=%r",
+            result.scene_type,
+            len(result.items),
+            result.summary[:80],
+        )
+        for i, item in enumerate(result.items):
+            logger.info(
+                "  item[%d] indices=%s src=%r -> tgt=%r note=%r",
+                i,
+                item.ocr_indices,
+                item.source_text[:60],
+                item.translated_text[:60],
+                (item.note or "")[:60],
+            )
         yield self._sse("final", self._result_to_dict(result))
 
     @staticmethod
