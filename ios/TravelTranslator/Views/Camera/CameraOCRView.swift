@@ -215,9 +215,7 @@ struct ImagePreviewView: View {
                 HStack(spacing: 16) {
                     Spacer()
                     Button {
-                        if let img = PosterRenderer.render(snapshot: snapshot) {
-                            shareItem = ShareItem(image: img)
-                        }
+                        shareItem = ShareItem(image: snapshot.composedImage)
                     } label: {
                         Image(systemName: "square.and.arrow.up.circle.fill")
                             .font(.system(size: 30))
