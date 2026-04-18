@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showingOCRDetail = false
     @State private var showingScenes = false
     @State private var pickerItem: PhotosPickerItem?
+    @State private var pendingImage: UIImage?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -46,10 +47,6 @@ struct HomeView: View {
                 .padding(.bottom, 140)
             }
 
-            if !viewModel.streamLog.isEmpty || viewModel.ocrError != nil {
-                statusToast
-                    .padding(.top, 12)
-            }
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $showingDestinationPicker) {
@@ -66,12 +63,8 @@ struct HomeView: View {
             CameraPicker(
                 onImage: { image in
                     showingCamera = false
-                    Task {
-                        await viewModel.process(image: image, appState: appState)
-                        if viewModel.latestSnapshot != nil {
-                            showingOCRDetail = true
-                        }
-                    }
+                    pendingImage = image
+                    showingOCRDetail = true
                 },
                 onCancel: { showingCamera = false }
             )
@@ -81,8 +74,8 @@ struct HomeView: View {
             NavigationStack { ConversationView() }
         }
         .navigationDestination(isPresented: $showingOCRDetail) {
-            if let snap = viewModel.latestSnapshot {
-                CameraOCRView(snapshot: snap)
+            if let img = pendingImage {
+                CameraOCRView(initialImage: img)
             }
         }
         .navigationDestination(isPresented: $showingScenes) {
@@ -93,10 +86,8 @@ struct HomeView: View {
             Task {
                 if let data = try? await newItem.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    await viewModel.process(image: image, appState: appState)
-                    if viewModel.latestSnapshot != nil {
-                        showingOCRDetail = true
-                    }
+                    pendingImage = image
+                    showingOCRDetail = true
                 }
                 pickerItem = nil
             }
@@ -370,31 +361,6 @@ struct HomeView: View {
         }
     }
 
-    private var statusToast: some View {
-        Group {
-            if let err = viewModel.ocrError {
-                Label(err, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Theme.Semantic.danger))
-                    .designShadow(Theme.Shadow.float)
-            } else if let line = viewModel.streamLog.last {
-                HStack(spacing: 6) {
-                    ProgressView().tint(.white).scaleEffect(0.7)
-                    Text(line)
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(Color.black.opacity(0.8)))
-                .designShadow(Theme.Shadow.float)
-            }
-        }
-    }
 }
 
 // MARK: - Text Input Sheet
@@ -555,10 +521,6 @@ final class HomeViewModel: ObservableObject {
     @Published var liveTranslation: String = ""
     @Published var translateError: String?
 
-    @Published var latestSnapshot: OCRSnapshot?
-    @Published var streamLog: [String] = []
-    @Published var ocrError: String?
-
     /// 流式文本翻译：走 /api/v1/translate/stream。
     func translateStream(source: String, target: String, polish: Bool) async {
         guard !input.isEmpty else { return }
@@ -604,135 +566,5 @@ final class HomeViewModel: ObservableObject {
             translateError = error.localizedDescription
         }
         loadingTranslate = false
-    }
-
-    /// 图片流程：本地 OCR → 流式调 LLM → 解析 final → 生成带彩色框的标注图。
-    func process(image: UIImage, appState: AppState) async {
-        ocrError = nil
-        latestSnapshot = nil
-        streamLog.removeAll()
-
-        appendLog("正在识别文字…")
-        let recognized: [OCRBlock]
-        do {
-            recognized = try await OCRService.recognizeText(in: image)
-        } catch {
-            ocrError = error.localizedDescription
-            return
-        }
-        if recognized.isEmpty {
-            ocrError = "未识别到文字"
-            return
-        }
-
-        var snapshot = OCRSnapshot(
-            originalImage: image,
-            composedImage: image,
-            rawBlocks: recognized,
-            items: [],
-            sceneType: nil,
-            summary: nil
-        )
-        latestSnapshot = snapshot
-
-        appendLog("OCR 完成 \(recognized.count) 块，正在上传图片…")
-        let blocks = recognized.enumerated().map { idx, b in
-            VisionTranslateStreamService.OCRBlockPayload(index: idx, text: b.originalText)
-        }
-        let stream = VisionTranslateStreamService.stream(
-            image: image,
-            blocks: blocks,
-            sourceLanguage: appState.destination.language,
-            targetLanguage: appState.userLocale.language,
-            destination: appState.destination.name
-        )
-
-        var accumulatedDelta = ""
-        do {
-            for try await event in stream {
-                switch event {
-                case .status(let msg):
-                    appendLog(msg)
-                case .delta(let text):
-                    accumulatedDelta += text
-                    let tail = String(accumulatedDelta.suffix(60))
-                    appendLog(tail)
-                case .final(let payload):
-                    snapshot = Self.applyFinal(
-                        payload: payload,
-                        snapshot: snapshot,
-                        originalImage: image
-                    )
-                    latestSnapshot = snapshot
-                    appendLog("完成：\(payload.items.count) 项")
-                    HistoryStore.shared.addVision(
-                        image: snapshot.composedImage,
-                        items: snapshot.items,
-                        sceneType: snapshot.sceneType,
-                        summary: snapshot.summary
-                    )
-                case .error(let msg):
-                    ocrError = msg
-                }
-            }
-        } catch {
-            ocrError = error.localizedDescription
-        }
-    }
-
-    private func appendLog(_ line: String) {
-        streamLog.append(line)
-        if streamLog.count > 20 {
-            streamLog.removeFirst(streamLog.count - 20)
-        }
-    }
-
-    private static func applyFinal(
-        payload: VisionTranslateFinal,
-        snapshot: OCRSnapshot,
-        originalImage: UIImage
-    ) -> OCRSnapshot {
-        let rawBlocks = snapshot.rawBlocks
-        var items: [ResolvedTranslateItem] = []
-        var unionBoxes: [CGRect] = []
-        for item in payload.items {
-            let bbox = unionBBox(indices: item.ocrIndices, blocks: rawBlocks)
-            items.append(
-                ResolvedTranslateItem(
-                    sourceText: item.sourceText,
-                    translatedText: item.translatedText,
-                    note: item.note,
-                    boundingBox: bbox ?? .zero
-                )
-            )
-            if let bbox {
-                unionBoxes.append(bbox)
-            } else {
-                unionBoxes.append(.zero)
-            }
-        }
-        let composed = OCRCompositor.annotate(
-            image: originalImage,
-            boxes: unionBoxes
-        )
-        var next = snapshot
-        next.composedImage = composed
-        next.items = items
-        next.sceneType = payload.sceneType
-        next.summary = payload.summary
-        return next
-    }
-
-    private static func unionBBox(indices: [Int], blocks: [OCRBlock]) -> CGRect? {
-        var result: CGRect? = nil
-        for i in indices where i >= 0 && i < blocks.count {
-            let r = blocks[i].boundingBox
-            if let current = result {
-                result = current.union(r)
-            } else {
-                result = r
-            }
-        }
-        return result
     }
 }

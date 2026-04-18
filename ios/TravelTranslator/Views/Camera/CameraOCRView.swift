@@ -2,10 +2,26 @@ import SwiftUI
 import UIKit
 
 /// 拍照 / 相册 翻译结果详情页。
+///
+/// 支持两种入口：
+/// - 从首页拍照 / 相册选图：`init(initialImage:)` 进入后立即启动本地 OCR + 流式视觉翻译，
+///   流过程中逐步填充 `viewModel.snapshot`，页面随之刷新。
+/// - 从历史记录回放：`init(snapshot:)` 直接展示完整快照。
 struct CameraOCRView: View {
-    let snapshot: OCRSnapshot
+    @StateObject private var viewModel: CameraOCRViewModel
+    @EnvironmentObject private var appState: AppState
     @State private var showPreview = false
     @State private var shareItem: ShareItem?
+
+    init(initialImage: UIImage) {
+        _viewModel = StateObject(wrappedValue: CameraOCRViewModel(initialImage: initialImage))
+    }
+
+    init(snapshot: OCRSnapshot) {
+        _viewModel = StateObject(wrappedValue: CameraOCRViewModel(snapshot: snapshot))
+    }
+
+    private var snapshot: OCRSnapshot { viewModel.snapshot }
 
     var body: some View {
         GeometryReader { proxy in
@@ -29,6 +45,21 @@ struct CameraOCRView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
+                        if let err = viewModel.ocrError {
+                            Label(err, systemImage: "exclamationmark.triangle")
+                                .font(.footnote)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Theme.Semantic.danger)
+                                )
+                        } else if viewModel.isStreaming {
+                            streamingBanner
+                        }
+
                         if let scene = snapshot.sceneType,
                            let summary = snapshot.summary,
                            !summary.isEmpty {
@@ -51,7 +82,7 @@ struct CameraOCRView: View {
                                     TranslateItemRow(index: idx, item: item)
                                 }
                             }
-                        } else {
+                        } else if !viewModel.isStreaming && viewModel.ocrError == nil {
                             HStack(spacing: 8) {
                                 ProgressView()
                                 Text("等待 LLM 返回结果…")
@@ -81,6 +112,7 @@ struct CameraOCRView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .accessibilityLabel("分享")
+                .disabled(viewModel.isStreaming || snapshot.items.isEmpty)
             }
         }
         .fullScreenCover(isPresented: $showPreview) {
@@ -91,6 +123,42 @@ struct CameraOCRView: View {
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.image])
         }
+        .task {
+            viewModel.startIfNeeded(appState: appState)
+        }
+    }
+
+    /// 顶部流式状态条：最近一行日志 + 进度指示。
+    private var streamingBanner: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .tint(Theme.Accent.deep)
+                .scaleEffect(0.8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AI 正在识别并翻译…")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Accent.deep)
+                if let line = viewModel.streamLog.last, !line.isEmpty {
+                    Text(line)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.FG.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.Accent.soft)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Theme.Accent.base.opacity(0.15), lineWidth: 0.5)
+        )
     }
 }
 
