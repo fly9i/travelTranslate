@@ -5,80 +5,40 @@ struct ConversationView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ConversationViewModel()
     @StateObject private var recognizer = SpeechRecognitionService.shared
+    @Environment(\.dismiss) private var dismiss
 
     @State private var holdingToRecord = false
     @State private var cancelRecord = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages) { msg in
-                            MessageBubbleView(message: msg)
-                                .id(msg.id)
-                        }
-                    }
-                    .padding()
+        ZStack {
+            Theme.BG.base.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
+
+                conversationStream
+
+                if let error = viewModel.error ?? recognizer.errorMessage {
+                    Text(error)
+                        .foregroundStyle(Theme.Semantic.danger)
+                        .font(.footnote)
+                        .padding(.horizontal)
                 }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    if let last = viewModel.messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
-                }
+
+                inputDock
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 28)
             }
 
-            if let error = viewModel.error ?? recognizer.errorMessage {
-                Text(error).foregroundStyle(.red).font(.footnote).padding(.horizontal)
+            if holdingToRecord {
+                recordingOverlay
             }
-
-            Divider()
-            VStack(spacing: 8) {
-                HStack {
-                    TextField(
-                        viewModel.speaker == "user"
-                            ? "我说\(appState.userLocale.flag)…"
-                            : "对方说\(appState.destination.flag)…",
-                        text: $viewModel.input
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(recognizer.isRecording)
-
-                    Button("发送") {
-                        Task {
-                            await viewModel.send(
-                                destination: appState.destination,
-                                userLocale: appState.userLocale,
-                                polish: appState.culturalPolish
-                            )
-                        }
-                    }
-                    .disabled(viewModel.input.isEmpty || viewModel.loading)
-                    .buttonStyle(.borderedProminent)
-                }
-
-                Toggle("文化润色", isOn: $appState.culturalPolish)
-                    .font(.footnote)
-
-                // 按住说话按钮
-                holdToTalkButton
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    viewModel.switchSpeaker()
-                } label: {
-                    Label(
-                        viewModel.speaker == "user" ? "切换到对方说话" : "切换回我说话",
-                        systemImage: "arrow.2.circlepath"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding()
         }
-        .navigationTitle("对话 \(appState.userLocale.flag) ↔ \(appState.destination.flag)")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarHidden(true)
         .task {
             await viewModel.start(
                 destination: appState.destination.name,
@@ -87,45 +47,191 @@ struct ConversationView: View {
             )
             _ = await recognizer.requestAuthorization()
         }
-        .overlay(alignment: .center) {
-            if holdingToRecord {
-                recordingOverlay
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.FG.primary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Text(appState.userLocale.flag).font(.system(size: 20))
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.FG.tertiary)
+                Text(appState.destination.flag).font(.system(size: 20))
+                Text("实时对话")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.FG.primary)
+                    .padding(.leading, 4)
+            }
+
+            Spacer()
+            Color.clear.frame(width: 32, height: 32)
+        }
+    }
+
+    private var conversationStream: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 14) {
+                    ForEach(viewModel.messages) { msg in
+                        MessageBubbleView(message: msg)
+                            .id(msg.id)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .onChange(of: viewModel.messages.count) { _, _ in
+                if let last = viewModel.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
             }
         }
     }
 
+    // MARK: - Input dock
+
+    private var inputDock: some View {
+        VStack(spacing: 10) {
+            // 说话者切换
+            HStack(spacing: 8) {
+                speakerChip(
+                    text: "\(appState.userLocale.flag) 我说",
+                    active: viewModel.speaker == "user"
+                ) {
+                    viewModel.speaker = "user"
+                }
+                speakerChip(
+                    text: "\(appState.destination.flag) 对方说",
+                    active: viewModel.speaker == "counterpart"
+                ) {
+                    viewModel.speaker = "counterpart"
+                }
+            }
+
+            // 按住说话主按钮
+            holdToTalkButton
+
+            Text("上滑取消 · 或直接输入文字")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.FG.tertiary)
+
+            // 文字输入兜底
+            HStack(spacing: 8) {
+                TextField(
+                    viewModel.speaker == "user"
+                        ? "我说 \(appState.userLocale.flag)…"
+                        : "对方说 \(appState.destination.flag)…",
+                    text: $viewModel.input
+                )
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Theme.BG.sunken)
+                )
+                .disabled(recognizer.isRecording)
+
+                Button {
+                    Task {
+                        await viewModel.send(
+                            destination: appState.destination,
+                            userLocale: appState.userLocale,
+                            polish: appState.culturalPolish
+                        )
+                    }
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Theme.Accent.gradient))
+                        .shadow(color: Theme.Accent.glow, radius: 10, x: 0, y: 4)
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.input.isEmpty || viewModel.loading)
+                .opacity(viewModel.input.isEmpty ? 0.4 : 1)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.5), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 40, x: 0, y: 12)
+    }
+
+    private func speakerChip(text: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(active ? Theme.Accent.deep : Theme.FG.tertiary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(active ? Theme.Accent.soft : Theme.FG.primary.opacity(0.04))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var holdToTalkButton: some View {
-        let label = recognizer.isRecording
-            ? (cancelRecord ? "松开取消" : "松开发送")
+        let recording = recognizer.isRecording
+        let title = recording
+            ? (cancelRecord ? "松开取消" : "正在聆听… 松开翻译")
             : "按住 说话"
-        return Text(label)
-            .font(.headline)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity)
-            .background(recognizer.isRecording
-                ? (cancelRecord ? Color.red.opacity(0.8) : Color.accentColor)
-                : Color(.systemGray5))
-            .foregroundStyle(recognizer.isRecording ? .white : .primary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if !holdingToRecord {
-                            holdingToRecord = true
-                            cancelRecord = false
-                            startRecording()
-                        }
-                        // 向上滑超过 60 点视为取消
-                        cancelRecord = value.translation.height < -60
-                    }
-                    .onEnded { _ in
-                        let wasCancelled = cancelRecord
-                        holdingToRecord = false
+        return HStack(spacing: 10) {
+            Image(systemName: "mic.fill")
+            Text(title)
+                .font(.system(size: 17, weight: .semibold))
+        }
+        .foregroundStyle(recording ? .white : Theme.FG.primary)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(buttonFillStyle(recording: recording, cancel: cancelRecord))
+        )
+        .shadow(color: recording ? Theme.Accent.glow : .clear, radius: 20, x: 0, y: 8)
+        .scaleEffect(recording ? 0.98 : 1)
+        .animation(.easeOut(duration: 0.12), value: recording)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if !holdingToRecord {
+                        holdingToRecord = true
                         cancelRecord = false
-                        finishRecording(cancelled: wasCancelled)
+                        startRecording()
                     }
-            )
+                    cancelRecord = value.translation.height < -60
+                }
+                .onEnded { _ in
+                    let wasCancelled = cancelRecord
+                    holdingToRecord = false
+                    cancelRecord = false
+                    finishRecording(cancelled: wasCancelled)
+                }
+        )
     }
 
     private var recordingOverlay: some View {
@@ -144,12 +250,22 @@ struct ConversationView: View {
             }
         }
         .frame(width: 220, height: 220)
-        .background(Color.black.opacity(0.75))
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black.opacity(0.75))
+        )
+    }
+
+    private func buttonFillStyle(recording: Bool, cancel: Bool) -> AnyShapeStyle {
+        if recording {
+            return cancel
+                ? AnyShapeStyle(Theme.Semantic.danger)
+                : AnyShapeStyle(Theme.Accent.gradient)
+        }
+        return AnyShapeStyle(Theme.FG.primary.opacity(0.05))
     }
 
     private func startRecording() {
-        // user 说话 → 用户母语识别；counterpart 说话 → 目标语言识别
         let lang = viewModel.speaker == "user"
             ? appState.userLocale.voiceLanguage
             : appState.destination.voiceLanguage
@@ -219,10 +335,9 @@ final class ConversationViewModel: ObservableObject {
             )
             messages.append(msg)
             input = ""
-            // 自动朗读译文：user 说话用目标语言念、counterpart 说话用用户母语念
             let voice = speaker == "user" ? destination.voiceLanguage : userLocale.voiceLanguage
             SpeechService.shared.speak(msg.translatedText, languageCode: voice)
-            _ = polish // 对话接口的 polish 走 ConversationService，本版先保留开关，待后端对话接口升级
+            _ = polish
         } catch {
             self.error = error.localizedDescription
         }

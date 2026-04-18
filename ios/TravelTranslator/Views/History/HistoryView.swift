@@ -1,13 +1,35 @@
 import SwiftUI
 import UIKit
 
-/// 历史页：自动收录所有文本翻译 + 拍照翻译，每条都是"已收藏"状态；
-/// 点亮着的星号 = 取消 = 从历史删除。
+/// 历史页：自动收录所有文本翻译 + 拍照翻译；分段过滤（全部 / 拍照 / 文本 / 收藏）。
 struct HistoryView: View {
     @StateObject private var store = HistoryStore.shared
+    @State private var filter: Filter = .all
+
+    enum Filter: String, CaseIterable, Hashable {
+        case all, vision, text, starred
+        var label: String {
+            switch self {
+            case .all: return "全部"
+            case .vision: return "拍照"
+            case .text: return "文本"
+            case .starred: return "收藏"
+            }
+        }
+    }
+
+    private var filtered: [HistoryEntry] {
+        switch filter {
+        case .all, .starred: return store.entries
+        case .vision: return store.entries.filter { $0.kind == .vision }
+        case .text: return store.entries.filter { $0.kind == .text }
+        }
+    }
 
     var body: some View {
-        Group {
+        ZStack {
+            Theme.BG.base.ignoresSafeArea()
+
             if store.entries.isEmpty {
                 ContentUnavailableView(
                     "还没有历史",
@@ -15,25 +37,34 @@ struct HistoryView: View {
                     description: Text("做过的翻译会自动出现在这里。点亮着的星号即可删除。")
                 )
             } else {
-                List {
-                    ForEach(store.entries) { entry in
-                        HistoryRow(entry: entry, store: store)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    }
-                    .onDelete { offsets in
-                        for i in offsets {
-                            store.remove(store.entries[i])
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("历史")
+                            .font(.system(size: 28, weight: .bold))
+                            .padding(.horizontal, 4)
+
+                        GlassSegment(
+                            options: Filter.allCases.map { (id: $0, label: $0.label) },
+                            selection: $filter
+                        )
+
+                        LazyVStack(spacing: 10) {
+                            ForEach(filtered) { entry in
+                                HistoryRow(entry: entry, store: store)
+                            }
                         }
+                        .padding(.bottom, 140)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
-                .listStyle(.plain)
             }
         }
-        .navigationTitle("历史")
+        .navigationBarHidden(true)
     }
 }
 
-/// 单条历史：文本翻译横向布局，拍照翻译左缩略图 + 右摘要，可点进详情页。
+/// 单条历史：拍照 = 左缩略图 + 摘要；文本 = 原文 / 译文对照小卡片。
 private struct HistoryRow: View {
     let entry: HistoryEntry
     @ObservedObject var store: HistoryStore
@@ -58,47 +89,76 @@ private struct HistoryRow: View {
             Image(uiImage: snapshot.composedImage)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
             VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    ChipBadge(text: tagLabel(snapshot.sceneType), chip: chipFor(snapshot.sceneType))
+                    Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.FG.tertiary)
+                }
                 Text(snapshot.summary?.isEmpty == false ? snapshot.summary! : "拍照翻译")
-                    .font(.subheadline)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.FG.primary)
                     .lineLimit(2)
                 Text("\(snapshot.items.count) 项")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.FG.tertiary)
             }
             Spacer()
             starButton
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.BG.elevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Theme.FG.primary.opacity(0.04), lineWidth: 0.5)
+        )
     }
 
     private func textContent(text: HistoryTextEntry) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
+                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.FG.tertiary)
                 Text(text.sourceText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.FG.secondary)
                     .lineLimit(2)
                 Text(text.translatedText)
-                    .font(.body)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.FG.primary)
                     .lineLimit(3)
                 if let note = text.culturalNote, !note.isEmpty {
                     Label(note, systemImage: "lightbulb")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .lineLimit(2)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Chip.vanilla.fg)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Theme.Chip.vanilla.bg)
+                        )
                 }
-                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
             Spacer()
             starButton
         }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.BG.elevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Theme.FG.primary.opacity(0.04), lineWidth: 0.5)
+        )
     }
 
     private var starButton: some View {
@@ -106,10 +166,32 @@ private struct HistoryRow: View {
             store.remove(entry)
         } label: {
             Image(systemName: "star.fill")
-                .font(.title3)
-                .foregroundStyle(.yellow)
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.Semantic.warning)
         }
         .buttonStyle(.plain)
+    }
+
+    private func tagLabel(_ type: String?) -> String {
+        switch type {
+        case "menu": return "菜单"
+        case "sign": return "路牌"
+        case "receipt": return "小票"
+        case "document": return "文档"
+        case "ticket": return "票据"
+        default: return "拍照"
+        }
+    }
+
+    private func chipFor(_ type: String?) -> Theme.Chip {
+        switch type {
+        case "menu": return .peach
+        case "sign": return .sky
+        case "receipt": return .vanilla
+        case "document": return .sage
+        case "ticket": return .lilac
+        default: return .mint
+        }
     }
 }
 

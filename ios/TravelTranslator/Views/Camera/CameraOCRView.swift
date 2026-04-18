@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 拍照 / 相册 翻译结果详情页。从首页 NavigationLink 过来。
+/// 拍照 / 相册 翻译结果详情页。
 struct CameraOCRView: View {
     let snapshot: OCRSnapshot
     @State private var showPreview = false
@@ -10,20 +10,25 @@ struct CameraOCRView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                // 顶部固定图片：高度上限为可用高度的 40%，滚动译文时保持可见
-                // 点击进入全屏预览（支持双指缩放 / 双击放大 / 拖动）
+                // 顶部固定图片：占可用高度 40%，点击进入全屏预览
                 Image(uiImage: snapshot.composedImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: proxy.size.height * 0.4)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding([.horizontal, .top])
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Radius.lg, style: .continuous)
+                            .strokeBorder(Theme.FG.primary.opacity(0.06), lineWidth: 0.5)
+                    )
+                    .designShadow(Theme.Shadow.soft)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
                     .contentShape(Rectangle())
                     .onTapGesture { showPreview = true }
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 14) {
                         if let scene = snapshot.sceneType,
                            let summary = snapshot.summary,
                            !summary.isEmpty {
@@ -31,24 +36,38 @@ struct CameraOCRView: View {
                         }
 
                         if !snapshot.items.isEmpty {
-                            Text("原文 / 译文对照（\(snapshot.items.count) 项）")
-                                .font(.headline)
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("对照译文")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(Theme.FG.primary)
+                                Spacer()
+                                Text("\(snapshot.items.count) 项")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.FG.tertiary)
+                            }
 
-                            VStack(alignment: .leading, spacing: 8) {
+                            LazyVStack(spacing: 8) {
                                 ForEach(Array(snapshot.items.enumerated()), id: \.element.id) { idx, item in
                                     TranslateItemRow(index: idx, item: item)
                                 }
                             }
                         } else {
-                            Text("等待 LLM 返回结果…")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("等待 LLM 返回结果…")
+                                    .font(.footnote)
+                                    .foregroundStyle(Theme.FG.tertiary)
+                            }
+                            .padding()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 140)
                 }
             }
+            .background(Theme.BG.base.ignoresSafeArea())
         }
         .navigationTitle("拍照翻译")
         .navigationBarTitleDisplayMode(.inline)
@@ -92,7 +111,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-/// 把 OCRSnapshot 渲染成一张长图用于分享：顶图 + 场景卡片 + 完整译文列表。
+/// 把 OCRSnapshot 渲染成一张长图用于分享。
 enum PosterRenderer {
     @MainActor
     static func render(snapshot: OCRSnapshot) -> UIImage? {
@@ -105,7 +124,6 @@ enum PosterRenderer {
     }
 }
 
-/// 长图的 SwiftUI 布局。宽度交给外层指定。
 struct SharePosterView: View {
     let snapshot: OCRSnapshot
 
@@ -243,82 +261,105 @@ struct ImagePreviewView: View {
     }
 }
 
-/// 一个翻译项目的展示行：左侧彩色编号徽章，右侧原文 / 译文 / 可选提醒。
+/// 翻译项行：左侧彩色编号徽章 + 原文 / 译文 + 文化提示胶囊 + 朗读按钮。
 struct TranslateItemRow: View {
     let index: Int
     let item: ResolvedTranslateItem
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             NumberBadge(number: index + 1, color: OCRBlockPalette.color(at: index))
-            VStack(alignment: .leading, spacing: 4) {
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.sourceText)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.FG.primary)
                 Text(item.translatedText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.FG.secondary)
                 if let note = item.note, !note.isEmpty {
-                    Label(note, systemImage: "lightbulb")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
+                    Label(note, systemImage: "lightbulb.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Chip.vanilla.fg)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Theme.Chip.vanilla.bg)
+                        )
+                        .padding(.top, 4)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                SpeechService.shared.speak(item.sourceText, languageCode: "ja-JP")
+            } label: {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.FG.primary)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle().fill(Theme.FG.primary.opacity(0.05))
+                    )
+            }
+            .buttonStyle(.plain)
         }
-        .padding(10)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.BG.elevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Theme.FG.primary.opacity(0.04), lineWidth: 0.5)
+        )
     }
 }
 
-/// 编号徽章：和标注图上的圆点同色。
-struct NumberBadge: View {
-    let number: Int
-    let color: Color
-
-    var body: some View {
-        Text("\(number)")
-            .font(.caption.weight(.heavy))
-            .foregroundStyle(.white)
-            .frame(minWidth: 22, minHeight: 22)
-            .padding(.horizontal, number >= 10 ? 6 : 0)
-            .background(color)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(Color.white, lineWidth: 1.5)
-            )
-    }
-}
-
-/// LLM 判断出的场景简介。
+/// 场景总结卡片：珊瑚橙柔底 + 场景图标 + AI 总结正文。
 struct SceneSummaryCard: View {
     let sceneType: String
     let summary: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: sceneIcon(sceneType))
-                Text(sceneLabel(sceneType)).font(.headline)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(sceneEmoji(sceneType))
+                    .font(.system(size: 20))
+                Text(sceneLabel(sceneType))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Accent.deep)
                 Spacer()
+                Text("AI 总结")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.Accent.deep.opacity(0.7))
             }
-            Text(summary).font(.callout)
+            Text(summary)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.FG.primary)
+                .lineSpacing(2)
         }
-        .padding()
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Theme.Accent.soft)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Theme.Accent.base.opacity(0.15), lineWidth: 0.5)
+        )
     }
 
-    private func sceneIcon(_ type: String) -> String {
+    private func sceneEmoji(_ type: String) -> String {
         switch type {
-        case "menu": return "fork.knife"
-        case "sign": return "signpost.right"
-        case "receipt": return "doc.text"
-        case "document": return "doc"
-        case "ticket": return "ticket"
-        default: return "photo"
+        case "menu": return "🍜"
+        case "sign": return "🪧"
+        case "receipt": return "🧾"
+        case "document": return "📄"
+        case "ticket": return "🎫"
+        default: return "📷"
         }
     }
 
