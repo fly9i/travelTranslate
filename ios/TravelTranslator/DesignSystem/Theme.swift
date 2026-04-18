@@ -3,12 +3,12 @@ import SwiftUI
 /// 设计系统的基础 tokens — 珊瑚橙主色、玻璃 / 新拟态中性色、阴影与圆角。
 /// 视觉语言源自 fly9i 设计系统，为 TravelTranslator 定制。
 enum Theme {
-    // MARK: - Accent (coral)
+    // MARK: - Accent (amber)
     enum Accent {
-        static let base = Color(hex: 0xFF4D2E)
-        static let soft = Color(hex: 0xFFE6DE)
-        static let deep = Color(hex: 0xE0381C)
-        static let glow = Color(hex: 0xFF4D2E).opacity(0.35)
+        static let base = Color(hex: 0xE89A2A)
+        static let soft = Color(hex: 0xFCEBCC)
+        static let deep = Color(hex: 0xB9761A)
+        static let glow = Color(hex: 0xE89A2A).opacity(0.35)
         static let gradient = LinearGradient(
             colors: [base, deep],
             startPoint: .topLeading,
@@ -27,12 +27,12 @@ enum Theme {
     // MARK: - Palette (标注圆点 6 色轮换)
     enum Palette {
         static let colors: [Color] = [
-            Color(hex: 0xFF4D2E),
+            Color(hex: 0xE89A2A),
             Color(hex: 0x3874E0),
             Color(hex: 0x22A06B),
-            Color(hex: 0xE8A13A),
+            Color(hex: 0xC44747),
             Color(hex: 0x7455C8),
-            Color(hex: 0xE03E3E)
+            Color(hex: 0x2C8A5B)
         ]
 
         static func color(at index: Int) -> Color {

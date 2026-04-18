@@ -1,11 +1,11 @@
 import PhotosUI
 import SwiftUI
 
-/// 首页 / 相机 Tab —— 沉浸式取景器风格首屏。
-/// 顶部国旗切换 + 模式分段；中央取景框指引；底部大快门 + 相册 + 麦克风；上滑拉起文字输入。
+/// 首页 —— 卡片式布局：大标题 + 语言对 + 首选"拍 everything"卡 + 对话/场景次级卡 + 即时翻译样例卡。
 struct HomeView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = HomeViewModel()
+    @ObservedObject private var history = HistoryStore.shared
 
     @State private var showingDestinationPicker = false
     @State private var showingSettings = false
@@ -13,56 +13,42 @@ struct HomeView: View {
     @State private var showingConversation = false
     @State private var showingTextPanel = false
     @State private var showingOCRDetail = false
-    @State private var mode: CaptureMode = .photo
-    @State private var flashOn = false
+    @State private var showingScenes = false
     @State private var pickerItem: PhotosPickerItem?
 
-    enum CaptureMode: String, CaseIterable {
-        case photo, live, text, conversation
-        var label: String {
-            switch self {
-            case .photo: return "拍照"
-            case .live: return "实时"
-            case .text: return "文本"
-            case .conversation: return "对话"
-            }
-        }
-    }
-
     var body: some View {
-        ZStack {
-            viewfinderBackground
-                .ignoresSafeArea()
+        ZStack(alignment: .top) {
+            Theme.BG.base.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                topChrome
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                        .padding(.top, 8)
 
-                modeSegment
-                    .padding(.top, 12)
+                    LangPairPill(
+                        fromFlag: appState.userLocale.flag,
+                        toFlag: appState.destination.flag,
+                        toName: appState.destination.name,
+                        onTap: { showingDestinationPicker = true }
+                    )
 
-                Spacer(minLength: 0)
+                    primaryCameraCard
+                        .padding(.top, 4)
 
-                framingGuide
+                    secondaryRow
 
-                Spacer(minLength: 0)
+                    SectionHeaderView(title: "即时翻译")
+                        .padding(.top, 6)
 
-                textHint
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-
-                shutterDock
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 96) // 给浮动 TabBar 留位置
+                    quickTranslateCard
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 140)
             }
 
             if !viewModel.streamLog.isEmpty || viewModel.ocrError != nil {
-                VStack {
-                    statusToast
-                        .padding(.top, 120)
-                    Spacer()
-                }
+                statusToast
+                    .padding(.top, 12)
             }
         }
         .navigationBarHidden(true)
@@ -99,6 +85,9 @@ struct HomeView: View {
                 CameraOCRView(snapshot: snap)
             }
         }
+        .navigationDestination(isPresented: $showingScenes) {
+            SceneListView()
+        }
         .onChange(of: pickerItem) { _, newItem in
             guard let newItem else { return }
             Task {
@@ -119,226 +108,278 @@ struct HomeView: View {
 
     // MARK: - Pieces
 
-    /// 模拟取景器的背景：深色渐变 + 柔光 + 远景建筑意象，替代真实预览的"霸屏感"，
-    /// 点击快门即拉起系统相机。
-    private var viewfinderBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(hex: 0x0B0615), Color(hex: 0x2A1820), Color(hex: 0x1A0F18)],
-                startPoint: .top, endPoint: .bottom
-            )
-            // 珊瑚暖光
-            RadialGradient(
-                colors: [Color(hex: 0xFF9E5E).opacity(0.35), .clear],
-                center: .init(x: 0.25, y: 0.4), startRadius: 20, endRadius: 320
-            )
-            RadialGradient(
-                colors: [Color(hex: 0xFFD8A8).opacity(0.22), .clear],
-                center: .init(x: 0.8, y: 0.45), startRadius: 20, endRadius: 280
-            )
-            // 暗角
-            RadialGradient(
-                colors: [.clear, Color.black.opacity(0.45)],
-                center: .center, startRadius: 180, endRadius: 520
-            )
-        }
-    }
-
-    private var topChrome: some View {
-        HStack {
-            GlassPillButton(systemImage: "gearshape", size: 40) {
-                showingSettings = true
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("今天在 \(appState.destination.flag)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Theme.FG.primary)
+                    .tracking(-0.5)
+                Text("\(appState.destination.name) · \(appState.destination.localName)")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.FG.tertiary)
+                    .lineLimit(1)
             }
             Spacer()
-            LangPairPill(
-                fromFlag: appState.userLocale.flag,
-                toFlag: appState.destination.flag,
-                toName: appState.destination.name,
-                onTap: { showingDestinationPicker = true },
-                overlay: true
-            )
-            Spacer()
-            GlassPillButton(
-                systemImage: flashOn ? "bolt.fill" : "bolt.slash",
-                size: 40
-            ) {
-                flashOn.toggle()
-            }
-        }
-    }
+            HStack(spacing: 8) {
+                PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
+                    iconButton(systemImage: "photo.on.rectangle")
+                }
+                .buttonStyle(.plain)
 
-    private var modeSegment: some View {
-        HStack(spacing: 3) {
-            ForEach(CaptureMode.allCases, id: \.self) { m in
                 Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                        mode = m
-                        if m == .text { showingTextPanel = true }
-                        if m == .conversation { showingConversation = true }
-                    }
+                    showingSettings = true
                 } label: {
-                    Text(m.label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(m == mode ? Color.black : Color.white.opacity(0.75))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(
-                            ZStack {
-                                if m == mode {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(.white)
-                                }
-                            }
-                        )
+                    iconButton(systemImage: "gearshape")
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.black.opacity(0.4))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
-        )
     }
 
-    private var framingGuide: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.black.opacity(0.2))
-                .ignoresSafeArea()
-                .mask {
-                    Rectangle()
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .frame(width: 260, height: 200)
-                                .blendMode(.destinationOut)
-                        }
-                        .compositingGroup()
-                }
-                .allowsHitTesting(false)
-
-            VStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.85), lineWidth: 2)
-                        .frame(width: 260, height: 200)
-                    FramingCorners()
-                        .frame(width: 260, height: 200)
-                }
-                Text("将菜单 / 路牌 / 标签对准取景框")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 1)
-            }
-        }
+    private func iconButton(systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(Theme.FG.secondary)
+            .frame(width: 38, height: 38)
+            .background(Circle().fill(Theme.FG.primary.opacity(0.05)))
     }
 
-    private var textHint: some View {
+    private var primaryCameraCard: some View {
         Button {
-            showingTextPanel = true
+            showingCamera = true
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.white.opacity(0.85))
-                Text("上滑输入文字翻译")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.9))
-                Spacer()
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Theme.Accent.gradient)
+
+                // 右上角大相机水印
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 160, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.18))
+                    .rotationEffect(.degrees(-8))
+                    .offset(x: 180, y: -30)
+                    .clipped()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("首选功能")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                    Text("拍 everything")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                        .tracking(-0.5)
+                    Text("菜单、路牌、小票、门票 —— 对准就能读懂")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                        .lineLimit(2)
+                        .frame(maxWidth: 240, alignment: .leading)
+
+                    HStack(spacing: 6) {
+                        Text("开始拍摄")
+                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.2)))
+                    .padding(.top, 12)
+                }
+                .padding(24)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.black.opacity(0.5))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
-            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Theme.Accent.glow, radius: 32, x: 0, y: 16)
         }
         .buttonStyle(.plain)
     }
 
-    private var shutterDock: some View {
-        HStack {
-            PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Color(hex: 0x9AB86C), Color(hex: 0x607A46)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
-                    Image(systemName: "photo.on.rectangle")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 48, height: 48)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.7), lineWidth: 2)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 3)
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            Button {
-                showingCamera = true
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.25))
-                        .frame(width: 78, height: 78)
-                        .background(Circle().fill(.ultraThinMaterial))
-                    Circle()
-                        .fill(Theme.Accent.gradient)
-                        .frame(width: 66, height: 66)
-                        .overlay(
-                            Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 1.5)
-                        )
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .shadow(color: Theme.Accent.glow, radius: 24, x: 0, y: 10)
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            Button {
+    private var secondaryRow: some View {
+        HStack(spacing: 12) {
+            secondaryCard(
+                icon: "mic.fill",
+                chip: .sky,
+                title: "对话翻译",
+                subtitle: "按住说话"
+            ) {
                 showingConversation = true
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 0.5)
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 48, height: 48)
-                .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
             }
-            .buttonStyle(.plain)
+            secondaryCard(
+                icon: "square.grid.2x2.fill",
+                chip: .mint,
+                title: "场景短语",
+                subtitle: "\(Scenes.all.count) 个常用分类"
+            ) {
+                showingScenes = true
+            }
+        }
+    }
+
+    private func secondaryCard(
+        icon: String,
+        chip: Theme.Chip,
+        title: String,
+        subtitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(chip.fg)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(chip.bg)
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.FG.primary)
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.FG.tertiary)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.BG.elevated)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Theme.FG.primary.opacity(0.04), lineWidth: 0.5)
+            )
+            .designShadow(Theme.Shadow.soft)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var quickTranslateCard: some View {
+        let latest = latestTextEntry
+        let sourceLang = latest?.sourceLanguage ?? appState.userLocale.language
+        let targetLang = latest?.targetLanguage ?? appState.destination.language
+        let sourceText = latest?.sourceText ?? "附近有便宜的居酒屋推荐吗？"
+        let translated = latest?.translatedText
+        let targetLabel = Self.languageLabel(targetLang, destination: appState.destination)
+        let sourceLabel = Self.languageLabel(sourceLang, userLocale: appState.userLocale)
+
+        return Button {
+            showingTextPanel = true
+        } label: {
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sourceLabel)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.FG.tertiary)
+                    Text(sourceText)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Theme.FG.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+
+                Divider().background(Theme.FG.primary.opacity(0.05))
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(targetLabel)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.Accent.deep)
+                    if let translated, !translated.isEmpty {
+                        Text(translated)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(Theme.FG.primary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    } else {
+                        Text("点击输入想说的话 → 即时翻译")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Theme.FG.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("输入文字")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.Accent.base))
+
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.FG.tertiary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(Theme.Accent.soft)
+            }
+            .background(Theme.BG.elevated)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Theme.FG.primary.opacity(0.04), lineWidth: 0.5)
+            )
+            .designShadow(Theme.Shadow.soft)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var latestTextEntry: HistoryTextEntry? {
+        history.entries.first(where: { $0.kind == .text })?.text
+    }
+
+    private static func languageLabel(_ lang: String, destination: Destination) -> String {
+        if lang == destination.language { return destination.localName }
+        return languageDisplayName(lang)
+    }
+
+    private static func languageLabel(_ lang: String, userLocale: UserLocale) -> String {
+        if lang == userLocale.language { return userLocale.name }
+        return languageDisplayName(lang)
+    }
+
+    private static func languageDisplayName(_ lang: String) -> String {
+        switch lang {
+        case "zh": return "中文"
+        case "ja": return "日本語"
+        case "ko": return "한국어"
+        case "en": return "English"
+        case "fr": return "Français"
+        case "de": return "Deutsch"
+        case "es": return "Español"
+        case "it": return "Italiano"
+        case "pt": return "Português"
+        case "ru": return "Русский"
+        case "th": return "ภาษาไทย"
+        case "vi": return "Tiếng Việt"
+        case "ms": return "Bahasa Melayu"
+        case "id": return "Bahasa Indonesia"
+        case "ar": return "العربية"
+        case "tr": return "Türkçe"
+        case "nl": return "Nederlands"
+        default: return lang.uppercased()
         }
     }
 
     private var statusToast: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        Group {
             if let err = viewModel.ocrError {
                 Label(err, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(Theme.Semantic.danger))
+                    .designShadow(Theme.Shadow.float)
             } else if let line = viewModel.streamLog.last {
                 HStack(spacing: 6) {
                     ProgressView().tint(.white).scaleEffect(0.7)
@@ -347,53 +388,12 @@ struct HomeView: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(Color.black.opacity(0.8)))
+                .designShadow(Theme.Shadow.float)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            Capsule().fill(Color.black.opacity(0.55))
-        )
-        .overlay(
-            Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-        )
-    }
-}
-
-// MARK: - Framing corner ticks (珊瑚橙四角)
-
-private struct FramingCorners: View {
-    private let tick: CGFloat = 18
-    private let width: CGFloat = 260
-    private let height: CGFloat = 200
-
-    var body: some View {
-        ZStack {
-            corner(alignment: .topLeading)
-            corner(alignment: .topTrailing)
-            corner(alignment: .bottomLeading)
-            corner(alignment: .bottomTrailing)
-        }
-        .frame(width: width, height: height)
-    }
-
-    private func corner(alignment: Alignment) -> some View {
-        let flipX = alignment == .topTrailing || alignment == .bottomTrailing
-        let flipY = alignment == .bottomLeading || alignment == .bottomTrailing
-        return ZStack(alignment: .topLeading) {
-            // 横线
-            Rectangle()
-                .fill(Theme.Accent.base)
-                .frame(width: tick, height: 3)
-                .offset(y: flipY ? tick - 3 : 0)
-            // 竖线
-            Rectangle()
-                .fill(Theme.Accent.base)
-                .frame(width: 3, height: tick)
-                .offset(x: flipX ? tick - 3 : 0)
-        }
-        .frame(width: tick, height: tick)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
     }
 }
 
