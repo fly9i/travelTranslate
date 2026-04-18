@@ -3,6 +3,9 @@ import SwiftUI
 
 /// 首页 —— 卡片式布局：大标题 + 语言对 + 首选"拍 everything"卡 + 对话/场景次级卡 + 即时翻译样例卡。
 struct HomeView: View {
+    /// 父视图(RootView)在已停留在本页时再次点击中间拍摄按钮会递增此值 —— 用于唤起相机。
+    var captureTick: Int = 0
+
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = HomeViewModel()
     @ObservedObject private var history = HistoryStore.shared
@@ -94,6 +97,9 @@ struct HomeView: View {
         }
         .task {
             await appState.bootstrapFromLocation()
+        }
+        .onChange(of: captureTick) { _, _ in
+            showingCamera = true
         }
     }
 

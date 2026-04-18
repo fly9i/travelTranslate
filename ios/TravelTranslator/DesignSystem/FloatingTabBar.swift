@@ -7,6 +7,8 @@ struct FloatingTabBar: View {
     }
 
     @Binding var selection: Tab
+    /// 已在首页(camera tab)时再次点击中间大按钮的回调 —— 用于直接唤起拍摄。
+    var onCameraReTap: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 0) {
@@ -51,8 +53,12 @@ struct FloatingTabBar: View {
 
     private var cameraButton: some View {
         Button {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
-                selection = .camera
+            if selection == .camera {
+                onCameraReTap()
+            } else {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
+                    selection = .camera
+                }
             }
         } label: {
             Image(systemName: "camera.fill")
