@@ -58,10 +58,21 @@ final class CameraOCRViewModel: ObservableObject {
             return
         }
 
-        snapshot.rawBlocks = recognized
+        // 按阅读顺序排序：同一行 (y 相近) 内按 x 升序，行间按 y 升序 (上→下)。
+        // Vision bbox 是左下原点 —— 这里换算到左上原点的 y 再排序。
+        let sorted = recognized.sorted { lhs, rhs in
+            let ly = 1 - lhs.boundingBox.maxY
+            let ry = 1 - rhs.boundingBox.maxY
+            let rowTol = max(lhs.boundingBox.height, rhs.boundingBox.height) * 0.5
+            if abs(ly - ry) < rowTol {
+                return lhs.boundingBox.minX < rhs.boundingBox.minX
+            }
+            return ly < ry
+        }
+        snapshot.rawBlocks = sorted
 
-        appendLog("OCR 完成 \(recognized.count) 块，正在上传图片…")
-        let blocks = recognized.enumerated().map { idx, b in
+        appendLog("OCR 完成 \(sorted.count) 块，正在上传图片…")
+        let blocks = sorted.enumerated().map { idx, b in
             // Vision bbox: 左下原点 0-1 → 转换为左上原点 0-1，给后端 prompt 用更直观的坐标
             let v = b.boundingBox
             let bbox = VisionTranslateStreamService.OCRBlockPayload.BBox(
