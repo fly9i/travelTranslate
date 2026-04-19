@@ -48,7 +48,12 @@ final class CameraOCRViewModel: ObservableObject {
         appendLog("正在识别文字…")
         let recognized: [OCRBlock]
         do {
-            recognized = try await OCRService.recognizeText(in: snapshot.originalImage)
+            // 按目的地语言选 Vision 识别语言 —— 否则默认只认英文 + 简中，韩 / 日 / 俄等全漏。
+            let langs = OCRService.recognitionLanguages(for: appState.destination.language)
+            recognized = try await OCRService.recognizeText(
+                in: snapshot.originalImage,
+                languages: langs
+            )
         } catch {
             ocrError = error.localizedDescription
             return

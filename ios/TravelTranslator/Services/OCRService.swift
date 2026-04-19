@@ -13,6 +13,53 @@ struct OCRBlock: Identifiable {
 
 /// 端侧 OCR：用 Vision VNRecognizeTextRequest 识别图像中的文字。
 enum OCRService {
+    /// 根据应用侧的短语言代码 (ja/ko/zh/...) 映射到 Vision 的 BCP-47 tag。
+    /// 始终追加 en-US 作 fallback（菜单 / 路牌常混排拉丁字母）。
+    /// Vision Revision3 (iOS 16+) 支持：
+    ///   ja-JP, ko-KR, zh-Hans, zh-Hant, en-US, fr-FR, de-DE, es-ES, it-IT,
+    ///   pt-BR, ru-RU, uk-UA, th-TH, vi-VT, ar-SA 等。
+    static func recognitionLanguages(for appCode: String?) -> [String] {
+        var tags: [String] = []
+        switch (appCode ?? "").lowercased() {
+        case "ja":
+            tags = ["ja-JP"]
+        case "ko":
+            tags = ["ko-KR"]
+        case "zh", "zh-hans", "zh-cn":
+            tags = ["zh-Hans", "zh-Hant"]
+        case "zh-hant", "zh-tw", "zh-hk":
+            tags = ["zh-Hant", "zh-Hans"]
+        case "en":
+            tags = ["en-US"]
+        case "fr":
+            tags = ["fr-FR"]
+        case "de":
+            tags = ["de-DE"]
+        case "es":
+            tags = ["es-ES"]
+        case "it":
+            tags = ["it-IT"]
+        case "pt":
+            tags = ["pt-BR"]
+        case "ru":
+            tags = ["ru-RU"]
+        case "uk":
+            tags = ["uk-UA"]
+        case "th":
+            tags = ["th-TH"]
+        case "vi":
+            tags = ["vi-VT"]
+        case "ar":
+            tags = ["ar-SA"]
+        default:
+            tags = []
+        }
+        if !tags.contains("en-US") {
+            tags.append("en-US")
+        }
+        return tags
+    }
+
     static func recognizeText(
         in image: UIImage,
         languages: [String] = []
@@ -50,9 +97,22 @@ enum OCRService {
             if #available(iOS 16.0, *) {
                 request.revision = VNRecognizeTextRequestRevision3
             }
-            request.recognitionLanguages = languages.isEmpty
-                ? ["en-US", "zh-Hans"]
-                : languages
+            // 只保留 Vision 当前 revision 实际支持的 tag —— 传不支持的 tag 会让整个请求失败。
+            let supported: Set<String> = {
+                if #available(iOS 16.0, *) {
+                    return Set((try? VNRecognizeTextRequest.supportedRecognitionLanguages(
+                        for: .accurate,
+                        revision: VNRecognizeTextRequestRevision3
+                    )) ?? [])
+                }
+                return Set((try? VNRecognizeTextRequest.supportedRecognitionLanguages(
+                    for: .accurate,
+                    revision: VNRecognizeTextRequestRevision2
+                )) ?? [])
+            }()
+            let requested = languages.isEmpty ? ["en-US"] : languages
+            let filtered = requested.filter { supported.contains($0) }
+            request.recognitionLanguages = filtered.isEmpty ? ["en-US"] : filtered
 
             let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
             DispatchQueue.global(qos: .userInitiated).async {
