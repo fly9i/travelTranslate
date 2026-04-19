@@ -62,7 +62,19 @@ final class CameraOCRViewModel: ObservableObject {
 
         appendLog("OCR 完成 \(recognized.count) 块，正在上传图片…")
         let blocks = recognized.enumerated().map { idx, b in
-            VisionTranslateStreamService.OCRBlockPayload(index: idx, text: b.originalText)
+            // Vision bbox: 左下原点 0-1 → 转换为左上原点 0-1，给后端 prompt 用更直观的坐标
+            let v = b.boundingBox
+            let bbox = VisionTranslateStreamService.OCRBlockPayload.BBox(
+                x: Double(v.minX),
+                y: Double(1 - v.maxY),
+                w: Double(v.width),
+                h: Double(v.height)
+            )
+            return VisionTranslateStreamService.OCRBlockPayload(
+                index: idx,
+                text: b.originalText,
+                bbox: bbox
+            )
         }
         let stream = VisionTranslateStreamService.stream(
             image: snapshot.originalImage,

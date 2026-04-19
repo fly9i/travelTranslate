@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class OCRBlockInput:
-    """前端上传的 OCR 块，带图像归一化 bbox（Vision 左下原点坐标系）。"""
+    """前端上传的 OCR 块。bbox 为图像归一化 (x, y, w, h)，左上原点，0–1。"""
 
     index: int
     text: str
+    bbox: tuple[float, float, float, float] | None = None
 
 
 @dataclass
@@ -122,20 +123,44 @@ class VisionTranslateService:
         destination: str | None,
     ) -> str:
         dest_hint = f"用户所在地/目的地：{destination}。" if destination else ""
-        numbered = "\n".join(f"[{b.index}] {b.text}" for b in blocks)
+        # bbox 为归一化 0-1、左上原点 (x, y, w, h)。缺失时用 ?。
+        def fmt_block(b: OCRBlockInput) -> str:
+            if b.bbox is None:
+                return f"[{b.index}] bbox=? text={b.text!r}"
+            x, y, w, h = b.bbox
+            return (
+                f"[{b.index}] bbox=(x={x:.3f}, y={y:.3f}, w={w:.3f}, h={h:.3f}) "
+                f"text={b.text!r}"
+            )
+
+        numbered = "\n".join(fmt_block(b) for b in blocks)
         return (
             "你是一名旅行翻译助手。下面是用户拍摄的图片和本地 OCR 识别出的文字块，"
-            f"每条带编号。{dest_hint}图中文字语言：{source_language}，目标译文语言：{target_language}。\n\n"
+            f"每条带编号和归一化 bbox。{dest_hint}"
+            f"图中文字语言：{source_language}，目标译文语言：{target_language}。\n\n"
+            "坐标说明：bbox=(x, y, w, h) 归一化 0–1，左上原点。x 向右增，y 向下增。\n"
+            "两块之间的垂直距离 ≈ 下一块的 y − 上一块的 (y+h)。行高 ≈ h。\n\n"
             "请完成三件事：\n"
-            "1. 判断场景类型（menu / sign / receipt / document / ticket / other）；\n"
+            "1. 判断场景类型（menu / sign / receipt / document / ticket / other）。\n"
             "2. 把 OCR 文字块按「项目」聚合并输出。\n"
-            "   ⚠️ 必须做到穷举，不要做主观筛选：\n"
+            "   ⚠️ 必须穷举，不要主观筛选：\n"
             "     - menu 场景：每一道菜（含开胃菜、主菜、沙拉、甜点、饮品等）都必须输出一项，\n"
-            "       即使你觉得它不重要、价格不全、或描述只有一行也要输出。漏菜是严重错误。\n"
+            "       即使价格残缺或描述只有一行。漏菜是严重错误。\n"
             "     - 其它场景：所有具有实际信息的文字段落都要输出。\n"
-            "   只允许跳过：店名 Logo、装饰字、孤立的页码 / 价格碎片（无法归属任何项目时）、明显乱码。\n"
-            "3. 每个项目把相关的 OCR 编号合并（菜名 + 描述 + 价格归到同一 item），\n"
-            "   给出原文（按图像阅读顺序拼接）和地道译文，必要时补一条简短文化提醒 / 过敏源 / 消费注意。\n\n"
+            "   只允许跳过：店名 Logo、装饰字、无法归属任何项目的孤立页码 / 价格碎片、明显乱码。\n"
+            "3. 合并 / 拆分规则 —— 必须结合 bbox 空间关系判断，不能只看文字内容：\n"
+            "   ✅ 合并（同一 item）：当且仅当块 A 与块 B 满足全部条件：\n"
+            "      · 垂直距离 ≤ 1.2 × max(h_A, h_B)（紧邻）；\n"
+            "      · 水平上有可观的重叠（同一栏/同一行），或下一行缩进对齐到上一行；\n"
+            "      · 角色互补（标题 ↔ 描述 ↔ 价格 ↔ 备注），而不是两个并列条目。\n"
+            "   ❌ 必须拆分：\n"
+            "      · 垂直距离 > 1.2 × 行高 —— 视为不同 item，禁止合并。\n"
+            "      · 同一栏中两个都像菜名 / 都像标题的平行条目。\n"
+            "      · 左右两列（x 差距 > 0.3 且无重叠）—— 通常是两个独立项目或一个项目的名/价分列。\n"
+            "        如果确认是「同一行的名 + 价」，可以合并；否则保持拆分。\n"
+            "   💡 拿不准时，宁可拆细也不要合并 —— 粗颗粒的 item 是严重错误。\n"
+            "4. 每个 item 的 source_text 按阅读顺序拼接（上到下、左到右），译文要地道，"
+            "必要时补一条简短文化提醒 / 过敏源 / 消费注意。\n\n"
             "严格按以下 JSON 输出，不要任何 Markdown 代码块或额外文字：\n"
             "{\n"
             '  "scene_type": "menu | sign | receipt | document | ticket | other",\n'
@@ -151,8 +176,10 @@ class VisionTranslateService:
             "}\n\n"
             "硬性要求：\n"
             "- ocr_indices 必须来自下面 OCR 列表里的编号，不要编造；\n"
+            "- 每个 OCR 编号最多出现在一个 item 的 ocr_indices 中（不得重复归属）；\n"
             "- items 顺序按图像阅读顺序（一般是从上到下、从左到右）；\n"
-            f"- 在输出前心里数一遍：菜单上你看到了几道菜？items 的数量应当与之吻合。\n\n"
+            "- 输出前心里数一遍：图里看到了几个独立条目？items 数量应与之吻合，"
+            "宁多勿少。\n\n"
             f"OCR 列表（共 {len(blocks)} 条）：\n{numbered}"
         )
 

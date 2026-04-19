@@ -38,10 +38,23 @@ async def vision_translate_stream(
         if not isinstance(item, dict):
             continue
         try:
+            bbox_raw = item.get("bbox")
+            bbox: tuple[float, float, float, float] | None = None
+            if isinstance(bbox_raw, dict):
+                try:
+                    bbox = (
+                        float(bbox_raw.get("x", 0.0)),
+                        float(bbox_raw.get("y", 0.0)),
+                        float(bbox_raw.get("w", 0.0)),
+                        float(bbox_raw.get("h", 0.0)),
+                    )
+                except (TypeError, ValueError):
+                    bbox = None
             blocks.append(
                 OCRBlockInput(
                     index=int(item.get("index")),
                     text=str(item.get("text") or "").strip(),
+                    bbox=bbox,
                 )
             )
         except (TypeError, ValueError):

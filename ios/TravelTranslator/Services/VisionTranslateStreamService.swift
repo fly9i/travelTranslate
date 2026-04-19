@@ -41,9 +41,19 @@ struct VisionTranslateFinalItem: Decodable, Identifiable {
 
 /// 调后端 `/api/v1/vision/translate/stream`，返回事件流。
 enum VisionTranslateStreamService {
+    /// bbox 使用归一化 0–1、左上原点坐标系 —— 便于 LLM 按人类阅读顺序理解。
+    /// iOS 发送前会把 Vision 原生的左下原点换算过来。
     struct OCRBlockPayload: Encodable {
         let index: Int
         let text: String
+        let bbox: BBox
+
+        struct BBox: Encodable {
+            let x: Double
+            let y: Double
+            let w: Double
+            let h: Double
+        }
     }
 
     static func stream(
